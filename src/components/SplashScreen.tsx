@@ -28,9 +28,9 @@ export function SplashScreen({ onDone }: Props) {
           <svg viewBox="0 0 120 120">
             <defs>
               <linearGradient id="splashGrad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#5eead4" />
-                <stop offset="55%" stopColor="#4ade80" />
-                <stop offset="100%" stopColor="#a3e635" />
+                <stop offset="0%" stopColor="#d9f99d" />
+                <stop offset="55%" stopColor="#a3e635" />
+                <stop offset="100%" stopColor="#84cc16" />
               </linearGradient>
             </defs>
             <circle className="splash-track" cx="60" cy="60" r="52" />

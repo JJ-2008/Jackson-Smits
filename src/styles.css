@@ -9,10 +9,11 @@
   --muted: #99a2b6;
   --faint: #6a7289;
 
-  --accent: #4ade80; /* calories */
-  --protein: #f472b6;
-  --carbs: #60a5fa;
-  --fat: #fbbf24;
+  --accent: #a3e635; /* lime — single accent */
+  --on-accent: #1a2606; /* dark text on the lime accent */
+  --protein: #c5d86d;
+  --carbs: #9aa3ad;
+  --fat: #e0c76b;
   --danger: #f87171;
 
   --ring-track: #222839;
@@ -44,8 +45,7 @@ body {
 
 body {
   background:
-    radial-gradient(900px 500px at 100% -10%, rgba(74, 222, 128, 0.07), transparent 60%),
-    radial-gradient(700px 500px at -10% 0%, rgba(96, 165, 250, 0.06), transparent 55%),
+    radial-gradient(900px 520px at 50% -12%, rgba(163, 230, 53, 0.06), transparent 62%),
     var(--bg);
   min-height: 100vh;
 }
@@ -131,19 +131,33 @@ textarea {
   background: linear-gradient(180deg, var(--card), var(--bg-2));
   border: 1px solid var(--stroke);
   border-radius: var(--radius);
-  padding: 18px;
+  padding: 20px;
   box-shadow: var(--shadow);
 }
 .card + .card {
-  margin-top: 14px;
+  margin-top: 16px;
 }
+/* Minimal: large, quiet section titles with a hairline rule. */
 .section-title {
-  font-size: 12px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--faint);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 19px;
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--text);
   font-weight: 700;
-  margin: 0 0 12px;
+  margin: 0 0 16px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid var(--stroke);
+}
+.section-title > span {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
 }
 
 /* ---------- Dashboard ring ---------- */
@@ -151,8 +165,10 @@ textarea {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-top: 22px;
-  padding-bottom: 20px;
+  padding-bottom: 14px;
+}
+.dash > .section-title {
+  align-self: stretch;
 }
 .ring-wrap {
   position: relative;
@@ -207,7 +223,6 @@ textarea {
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   width: 100%;
-  margin-top: 22px;
 }
 .macro-card {
   background: var(--card-2);
@@ -323,15 +338,15 @@ textarea {
   color: var(--faint);
 }
 .add-btn {
-  background: linear-gradient(180deg, #56e58c, #34c66f);
-  color: #05230f;
+  background: linear-gradient(180deg, #bef264, #a3e635);
+  color: var(--on-accent);
   font-weight: 800;
   border-radius: 14px;
   padding: 0 18px;
   height: 50px;
   min-width: 62px;
   font-size: 15px;
-  box-shadow: 0 6px 16px rgba(52, 198, 111, 0.3);
+  box-shadow: 0 6px 16px rgba(163, 230, 53, 0.28);
   transition: transform 0.08s, filter 0.15s;
 }
 .add-btn:active {
@@ -357,7 +372,7 @@ textarea {
   border: 1px solid var(--stroke);
 }
 .meal-tab.active {
-  color: #05230f;
+  color: var(--on-accent);
   background: var(--accent);
   border-color: var(--accent);
 }
@@ -643,9 +658,9 @@ textarea {
   line-height: 1.5;
 }
 .warn.ok {
-  background: rgba(74, 222, 128, 0.08);
-  border-color: rgba(74, 222, 128, 0.3);
-  color: #baf5cf;
+  background: rgba(163, 230, 53, 0.08);
+  border-color: rgba(163, 230, 53, 0.3);
+  color: #e8f7c2;
 }
 
 /* sparkline */
@@ -734,7 +749,7 @@ textarea {
 }
 .hit-yes {
   color: var(--accent);
-  background: rgba(74, 222, 128, 0.12);
+  background: rgba(163, 230, 53, 0.12);
 }
 .hit-no {
   color: var(--faint);
@@ -868,7 +883,7 @@ textarea {
 }
 .btn-primary {
   background: var(--accent);
-  color: #05230f;
+  color: var(--on-accent);
 }
 .btn-ghost {
   background: var(--card-2);
@@ -938,7 +953,7 @@ textarea {
 .scanner-frame {
   position: absolute;
   inset: 22% 12%;
-  border: 2px solid rgba(74, 222, 128, 0.9);
+  border: 2px solid rgba(163, 230, 53, 0.9);
   border-radius: 12px;
   box-shadow: 0 0 0 2000px rgba(0, 0, 0, 0.25);
 }
@@ -1191,7 +1206,7 @@ textarea {
   display: grid;
   place-items: center;
   font-size: 12px;
-  color: #05230f;
+  color: var(--on-accent);
 }
 .day-dot.d-empty {
   background: var(--bg-2);
@@ -1370,7 +1385,7 @@ textarea {
   display: grid;
   place-items: center;
   background:
-    radial-gradient(700px 500px at 50% 30%, rgba(74, 222, 128, 0.14), transparent 60%),
+    radial-gradient(700px 500px at 50% 30%, rgba(163, 230, 53, 0.14), transparent 60%),
     var(--bg);
   transition: opacity 0.45s ease, transform 0.45s ease, filter 0.45s ease;
 }
@@ -1446,7 +1461,7 @@ textarea {
 }
 .splash-word span {
   display: inline-block;
-  background: linear-gradient(180deg, #eafff1, #7be6a6);
+  background: linear-gradient(180deg, #f4ffd6, #bde86a);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -1533,7 +1548,7 @@ textarea {
   overflow: hidden;
 }
 .qa-chip.fav {
-  border-color: rgba(74, 222, 128, 0.3);
+  border-color: rgba(163, 230, 53, 0.3);
 }
 .qa-chip-body {
   display: flex;
@@ -1574,7 +1589,7 @@ textarea {
 
 /* favourite toggle state on edit chip */
 .chip-toggle.fav-on {
-  color: #05230f;
+  color: var(--on-accent);
   background: var(--accent);
   border-color: var(--accent);
 }

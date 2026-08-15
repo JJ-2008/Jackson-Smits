@@ -115,6 +115,14 @@ export default function App() {
       {tab === "today" && (
         <>
           <div className="card dash">
+            <h2 className="section-title">
+              Calories
+              <span>
+                {totals.calories > targets.calories
+                  ? `${(totals.calories - targets.calories).toLocaleString()} over`
+                  : `${Math.round(targets.calories - totals.calories).toLocaleString()} left`}
+              </span>
+            </h2>
             <CalorieRing consumed={totals.calories} target={targets.calories} />
             {burn > 0 && (
               <div className="burn-badge" onClick={() => setTab("exercise")}>
@@ -122,6 +130,10 @@ export default function App() {
                 {targets.calories.toLocaleString()}
               </div>
             )}
+          </div>
+
+          <div className="card">
+            <h2 className="section-title">Macros</h2>
             <MacroCards totals={totals} targets={targets} />
           </div>
 

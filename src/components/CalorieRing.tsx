@@ -19,9 +19,9 @@ export function CalorieRing({ consumed, target }: Props) {
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         <defs>
           <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="#5eead4" />
-            <stop offset="55%" stopColor="#4ade80" />
-            <stop offset="100%" stopColor="#a3e635" />
+            <stop offset="0%" stopColor="#d9f99d" />
+            <stop offset="55%" stopColor="#a3e635" />
+            <stop offset="100%" stopColor="#84cc16" />
           </linearGradient>
           <linearGradient id="ringOver" x1="0" y1="0" x2="1" y2="1">
             <stop offset="0%" stopColor="#fb923c" />
