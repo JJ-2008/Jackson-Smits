@@ -19,7 +19,7 @@ export interface FoodEntry extends Macros {
   createdAt: number; // epoch ms
   junk?: boolean; // flagged as junk / acne-promoting
   photo?: string; // optional data-URL thumbnail
-  source?: "text" | "barcode" | "manual"; // how it was added
+  source?: "text" | "barcode" | "manual" | "photo"; // how it was added
 }
 
 /** A logged workout / activity. */

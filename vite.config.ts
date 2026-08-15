@@ -27,10 +27,27 @@ export default defineConfig(({ command }) => ({
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,png,svg,woff2}"],
+        // Don't precache the heavy, rarely-used chunks — they load on demand
+        // (photo recogniser / barcode scanner) and are cached when first used.
+        globIgnores: ["**/tfjs-*.js", "**/zxing-*.js"],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
       },
     }),
   ],
   base: command === "build" ? "/Jackson-Smits/" : "/",
+  build: {
+    chunkSizeWarningLimit: 1200,
+    rollupOptions: {
+      output: {
+        // Keep the heavy, on-demand libraries in their own lazy chunks so the
+        // first load stays small.
+        manualChunks(id) {
+          if (id.includes("@tensorflow")) return "tfjs";
+          if (id.includes("@zxing")) return "zxing";
+        },
+      },
+    },
+  },
   server: {
     host: true,
     port: 5173,

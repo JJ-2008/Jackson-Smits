@@ -24,6 +24,10 @@ import { StreakTable } from "./components/StreakTable";
 const BarcodeScanner = lazy(() =>
   import("./components/BarcodeScanner").then((m) => ({ default: m.BarcodeScanner }))
 );
+// Photo recognition bundles a TensorFlow.js model — load it only when used.
+const PhotoEstimator = lazy(() =>
+  import("./components/PhotoEstimator").then((m) => ({ default: m.PhotoEstimator }))
+);
 
 type Tab = "today" | "history" | "exercise";
 
@@ -40,6 +44,7 @@ export default function App() {
   const [editing, setEditing] = useState<FoodEntry | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showPhoto, setShowPhoto] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -141,6 +146,7 @@ export default function App() {
             defaultMeal={guessMeal()}
             onAdd={handleAdd}
             onScan={() => setShowScanner(true)}
+            onPhoto={() => setShowPhoto(true)}
           />
 
           <QuickActions
@@ -231,6 +237,19 @@ export default function App() {
               setToast(`Added ${food.name}`);
             }}
             onClose={() => setShowScanner(false)}
+          />
+        </Suspense>
+      )}
+
+      {showPhoto && (
+        <Suspense fallback={<div className="toast">Loading photo estimator…</div>}>
+          <PhotoEstimator
+            defaultMeal={guessMeal()}
+            onAdd={(food, meal) => {
+              store.addPhotoFood(viewDate, food, meal);
+              setToast(`Added ${food.name}`);
+            }}
+            onClose={() => setShowPhoto(false)}
           />
         </Suspense>
       )}

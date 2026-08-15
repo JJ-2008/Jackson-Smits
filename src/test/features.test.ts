@@ -10,6 +10,7 @@ import { scaleTo } from "../lib/openfoodfacts";
 import { streakSummary } from "../lib/streak";
 import { isJunk, isAcneRisk } from "../data/foodTags";
 import { parseBackup } from "../lib/backup";
+import { matchFromPredictions, scaleMacros } from "../lib/photoEstimate";
 import type { AppState, DayLog, FoodEntry } from "../types";
 import { DEFAULT_SETTINGS } from "../lib/storage";
 
@@ -126,6 +127,39 @@ describe("exercise burn estimation & diet impact", () => {
     // added macro kcal ≈ burn
     const addedKcal = (adj.protein - base.protein) * 4 + (adj.carbs - base.carbs) * 4;
     expect(Math.abs(addedKcal - burn)).toBeLessThanOrEqual(4);
+  });
+});
+
+describe("photo food estimation (on-device)", () => {
+  it("maps a classifier label to a food and picks the top guess", () => {
+    const m = matchFromPredictions([
+      { className: "cheeseburger", probability: 0.82 },
+      { className: "bagel, beigel", probability: 0.1 },
+      { className: "plate", probability: 0.05 },
+    ]);
+    expect(m.best?.name).toBe("Burger");
+    expect(m.best?.confidence).toBeCloseTo(0.82, 2);
+    // a distinct alternative was found
+    expect(m.alternatives.map((a) => a.name)).toContain("Bagel");
+    expect(m.topGuesses[0]).toBe("cheeseburger");
+  });
+
+  it("returns no confident match for non-food, but keeps the labels", () => {
+    const m = matchFromPredictions([
+      { className: "Labrador retriever", probability: 0.7 },
+      { className: "tennis ball", probability: 0.2 },
+    ]);
+    expect(m.best).toBeNull();
+    expect(m.topGuesses).toContain("Labrador retriever");
+  });
+
+  it("scales a photo food's macros to the chosen portion", () => {
+    const m = matchFromPredictions([{ className: "banana", probability: 0.9 }]);
+    expect(m.best).not.toBeNull();
+    const macros = scaleMacros(m.best!.servingG, m.best!.per100g);
+    // ~120 g banana ≈ 107 kcal
+    expect(macros.calories).toBeGreaterThan(90);
+    expect(macros.calories).toBeLessThan(130);
   });
 });
 

@@ -144,6 +144,39 @@ export function useStore() {
     [ensureDay]
   );
 
+  /** Add a food estimated from a photo, keeping the photo thumbnail. */
+  const addPhotoFood = useCallback(
+    (
+      date: string,
+      food: { name: string; quantity: string; macros: Macros; photo?: string },
+      meal: MealType
+    ) => {
+      setState((s) => {
+        const day = ensureDay(s, date);
+        const entry: FoodEntry = {
+          id: genId(),
+          name: food.name,
+          quantity: food.quantity,
+          meal,
+          estimated: true,
+          createdAt: Date.now(),
+          calories: Math.round(food.macros.calories),
+          protein: Math.round(food.macros.protein * 10) / 10,
+          carbs: Math.round(food.macros.carbs * 10) / 10,
+          fat: Math.round(food.macros.fat * 10) / 10,
+          junk: autoJunk(food.name),
+          photo: food.photo,
+          source: "photo",
+        };
+        return {
+          ...s,
+          days: { ...s.days, [date]: { ...day, foods: [...day.foods, entry] } },
+        };
+      });
+    },
+    [ensureDay]
+  );
+
   const toggleJunk = useCallback((date: string, id: string) => {
     setState((s) => {
       const day = s.days[date];
@@ -303,6 +336,7 @@ export function useStore() {
       today,
       addFoodsFromText,
       addBarcodeFood,
+      addPhotoFood,
       toggleJunk,
       updateFood,
       deleteFood,
@@ -321,6 +355,7 @@ export function useStore() {
       today,
       addFoodsFromText,
       addBarcodeFood,
+      addPhotoFood,
       toggleJunk,
       updateFood,
       deleteFood,

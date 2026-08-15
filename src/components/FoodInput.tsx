@@ -5,6 +5,7 @@ interface Props {
   defaultMeal: MealType;
   onAdd: (text: string, meal: MealType) => number;
   onScan: () => void;
+  onPhoto: () => void;
 }
 
 const PLACEHOLDERS = [
@@ -15,7 +16,7 @@ const PLACEHOLDERS = [
   "2 eggs, toast and avocado",
 ];
 
-export function FoodInput({ defaultMeal, onAdd, onScan }: Props) {
+export function FoodInput({ defaultMeal, onAdd, onScan, onPhoto }: Props) {
   const [text, setText] = useState("");
   const [meal, setMeal] = useState<MealType>(defaultMeal);
   const [placeholder] = useState(
@@ -61,9 +62,14 @@ export function FoodInput({ defaultMeal, onAdd, onScan }: Props) {
           </button>
         ))}
       </div>
-      <button className="scan-btn" onClick={onScan}>
-        📷 Scan a barcode
-      </button>
+      <div className="input-actions">
+        <button className="scan-btn" onClick={onScan}>
+          📷 Scan barcode
+        </button>
+        <button className="scan-btn" onClick={onPhoto}>
+          🍽️ Photo estimate
+        </button>
+      </div>
       <p className="hint">
         Type naturally — e.g. <code>200g chicken breast and 250g cooked rice</code>.
         Estimates are auto-calculated and fully editable.
