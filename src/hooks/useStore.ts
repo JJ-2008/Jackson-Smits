@@ -16,6 +16,8 @@ import { parseMeal } from "../lib/parser";
 import { autoJunk } from "../data/foodTags";
 import { computeTargets } from "../lib/goals";
 import { parseExerciseText } from "../lib/exercise";
+import { searchFoods } from "../lib/foodSearch";
+import { scaleTo } from "../lib/openfoodfacts";
 
 let idCounter = 0;
 const genId = () =>
@@ -41,6 +43,56 @@ export function useStore() {
   const ensureDay = useCallback((s: AppState, date: string): DayLog => {
     return s.days[date] ?? { date, foods: [] };
   }, []);
+
+  /** Patch a food's macros/quantity in place without flipping the estimate flag. */
+  const patchFoodMacros = useCallback(
+    (date: string, id: string, macros: Macros, quantity?: string) => {
+      setState((s) => {
+        const day = s.days[date];
+        if (!day) return s;
+        return {
+          ...s,
+          days: {
+            ...s.days,
+            [date]: {
+              ...day,
+              foods: day.foods.map((f) =>
+                f.id === id
+                  ? {
+                      ...f,
+                      calories: Math.round(macros.calories),
+                      protein: Math.round(macros.protein * 10) / 10,
+                      carbs: Math.round(macros.carbs * 10) / 10,
+                      fat: Math.round(macros.fat * 10) / 10,
+                      quantity: quantity ?? f.quantity,
+                    }
+                  : f
+              ),
+            },
+          },
+        };
+      });
+    },
+    []
+  );
+
+  /** Look an unrecognised food up online and fill in its macros. */
+  const resolveOnline = useCallback(
+    async (date: string, id: string, name: string, grams?: number, count?: number) => {
+      try {
+        const hits = await searchFoods(name);
+        const hit = hits[0];
+        if (!hit) return;
+        const g = grams ?? (count ? count * (hit.servingG || 100) : hit.servingG || 100);
+        const macros = scaleTo(g, hit.per100g);
+        const qty = grams ? undefined : `${Math.round(g)} g`;
+        patchFoodMacros(date, id, macros, qty);
+      } catch {
+        // offline or lookup failed — leave the entry for the user to edit
+      }
+    },
+    [patchFoodMacros]
+  );
 
   const addFoodsFromText = useCallback(
     (date: string, text: string, meal: MealType): number => {
@@ -71,9 +123,16 @@ export function useStore() {
           },
         };
       });
+      // For anything not in the built-in database, estimate it from the online
+      // food database in the background and fill the macros in when it returns.
+      parsed.forEach((p, i) => {
+        if (!p.matched && p.name.trim().length >= 3) {
+          resolveOnline(date, entries[i].id, p.name, p.grams, p.count);
+        }
+      });
       return entries.length;
     },
-    [ensureDay]
+    [ensureDay, resolveOnline]
   );
 
   const updateFood = useCallback(

@@ -5,6 +5,8 @@ export interface ParsedFood extends Macros {
   name: string;
   quantity: string; // human readable, e.g. "200 g", "3", "1 cup"
   matched: boolean; // true if we found it in the database
+  grams?: number; // parsed weight/volume amount, if given (for online fallback)
+  count?: number; // parsed item count, if given
 }
 
 const NUMBER_WORDS: Record<string, number> = {
@@ -194,6 +196,8 @@ export function parsePhrase(phrase: string): ParsedFood | null {
       name: label,
       quantity: qty.label || "1 serving",
       matched: false,
+      grams: qty.grams ?? qty.ml,
+      count: qty.count,
       calories: 0,
       protein: 0,
       carbs: 0,

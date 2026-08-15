@@ -72,10 +72,30 @@ describe("natural language food parser", () => {
   });
 
   it("surfaces unknown foods so they can be corrected", () => {
-    const p = parsePhrase("dragonfruit smoothie bowl");
+    const p = parsePhrase("dragonfruit bowl");
     expect(p).not.toBeNull();
     expect(p!.matched).toBe(false);
     expect(p!.calories).toBe(0);
+  });
+
+  it("passes the parsed amount through for unmatched foods (online fallback)", () => {
+    const p = parsePhrase("150g dragonfruit");
+    expect(p!.matched).toBe(false);
+    expect(p!.grams).toBe(150);
+  });
+
+  it("recognises more common foods from the expanded database", () => {
+    for (const [phrase, name] of [
+      ["150g halloumi", "Halloumi"],
+      ["a sausage roll", "Sausage roll"],
+      ["chicken caesar wrap", "Chicken wrap"],
+      ["jacket potato", "Jacket potato"],
+      ["katsu curry", "Katsu curry"],
+    ] as const) {
+      const p = parsePhrase(phrase);
+      expect(p?.name, phrase).toBe(name);
+      expect(p!.calories).toBeGreaterThan(0);
+    }
   });
 
   it("macro-derived calories stay sane for a full day log", () => {
