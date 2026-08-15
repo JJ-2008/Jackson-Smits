@@ -2,14 +2,21 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AppState,
   DayLog,
+  ExerciseEntry,
+  FavFood,
   FoodEntry,
+  Macros,
   MealType,
+  Profile,
   Settings,
   Targets,
 } from "../types";
 import { loadState, saveState } from "../lib/storage";
-import { toDateKey } from "../lib/date";
+import { addDays, toDateKey } from "../lib/date";
 import { parseMeal } from "../lib/parser";
+import { autoJunk } from "../data/foodTags";
+import { computeTargets } from "../lib/goals";
+import { parseExerciseText } from "../lib/exercise";
 
 let idCounter = 0;
 const genId = () =>
@@ -52,6 +59,8 @@ export function useStore() {
         protein: p.protein,
         carbs: p.carbs,
         fat: p.fat,
+        junk: autoJunk(p.name),
+        source: "text",
       }));
       setState((s) => {
         const day = ensureDay(s, date);
@@ -104,6 +113,126 @@ export function useStore() {
     });
   }, []);
 
+  /** Add a food from a scanned barcode product with computed macros. */
+  const addBarcodeFood = useCallback(
+    (
+      date: string,
+      food: { name: string; quantity: string; macros: Macros },
+      meal: MealType
+    ) => {
+      setState((s) => {
+        const day = ensureDay(s, date);
+        const entry: FoodEntry = {
+          id: genId(),
+          name: food.name,
+          quantity: food.quantity,
+          meal,
+          estimated: true,
+          createdAt: Date.now(),
+          calories: Math.round(food.macros.calories),
+          protein: Math.round(food.macros.protein * 10) / 10,
+          carbs: Math.round(food.macros.carbs * 10) / 10,
+          fat: Math.round(food.macros.fat * 10) / 10,
+          junk: autoJunk(food.name),
+          source: "barcode",
+        };
+        return {
+          ...s,
+          days: { ...s.days, [date]: { ...day, foods: [...day.foods, entry] } },
+        };
+      });
+    },
+    [ensureDay]
+  );
+
+  const toggleJunk = useCallback((date: string, id: string) => {
+    setState((s) => {
+      const day = s.days[date];
+      if (!day) return s;
+      return {
+        ...s,
+        days: {
+          ...s.days,
+          [date]: {
+            ...day,
+            foods: day.foods.map((f) =>
+              f.id === id ? { ...f, junk: !f.junk } : f
+            ),
+          },
+        },
+      };
+    });
+  }, []);
+
+  /** Parse a free-text workout description and log the estimated burn. */
+  const addExerciseFromText = useCallback(
+    (date: string, text: string, weightKg: number): number => {
+      const parsed = parseExerciseText(text, weightKg);
+      if (!parsed.length) return 0;
+      const now = Date.now();
+      const entries: ExerciseEntry[] = parsed.map((p, i) => ({
+        id: genId(),
+        description: p.description,
+        type: p.type,
+        minutes: p.minutes,
+        calories: p.calories,
+        strength: p.strength,
+        createdAt: now + i,
+      }));
+      setState((s) => {
+        const day = ensureDay(s, date);
+        return {
+          ...s,
+          days: {
+            ...s.days,
+            [date]: { ...day, exercises: [...(day.exercises ?? []), ...entries] },
+          },
+        };
+      });
+      return entries.length;
+    },
+    [ensureDay]
+  );
+
+  const updateExercise = useCallback(
+    (date: string, id: string, patch: Partial<ExerciseEntry>) => {
+      setState((s) => {
+        const day = s.days[date];
+        if (!day) return s;
+        return {
+          ...s,
+          days: {
+            ...s.days,
+            [date]: {
+              ...day,
+              exercises: (day.exercises ?? []).map((e) =>
+                e.id === id ? { ...e, ...patch } : e
+              ),
+            },
+          },
+        };
+      });
+    },
+    []
+  );
+
+  const deleteExercise = useCallback((date: string, id: string) => {
+    setState((s) => {
+      const day = s.days[date];
+      if (!day) return s;
+      return {
+        ...s,
+        days: {
+          ...s.days,
+          [date]: {
+            ...day,
+            exercises: (day.exercises ?? []).filter((e) => e.id !== id),
+          },
+        },
+      };
+    });
+  }, []);
+
   const setBodyweight = useCallback((date: string, weight: number | undefined) => {
     setState((s) => {
       const day = s.days[date] ?? { date, foods: [] };
@@ -112,11 +241,120 @@ export function useStore() {
   }, []);
 
   const setTargets = useCallback((targets: Targets) => {
-    setState((s) => ({ ...s, settings: { ...s.settings, targets } }));
+    // Manually editing targets turns off auto-calculation.
+    setState((s) => ({
+      ...s,
+      settings: { ...s.settings, targets, autoTargets: false },
+    }));
+  }, []);
+
+  /** Save a profile and (re)calculate targets from it automatically. */
+  const applyProfile = useCallback((profile: Profile) => {
+    setState((s) => ({
+      ...s,
+      settings: {
+        ...s.settings,
+        profile,
+        autoTargets: true,
+        targets: computeTargets(profile),
+      },
+    }));
   }, []);
 
   const setSettings = useCallback((patch: Partial<Settings>) => {
     setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }));
+  }, []);
+
+  /** One-tap log a saved/recent food. */
+  const quickAddFav = useCallback(
+    (date: string, fav: FavFood, meal: MealType) => {
+      setState((s) => {
+        const day = ensureDay(s, date);
+        const entry: FoodEntry = {
+          id: genId(),
+          name: fav.name,
+          quantity: fav.quantity,
+          meal,
+          estimated: true,
+          createdAt: Date.now(),
+          calories: fav.calories,
+          protein: fav.protein,
+          carbs: fav.carbs,
+          fat: fav.fat,
+          junk: fav.junk ?? autoJunk(fav.name),
+          source: "manual",
+        };
+        return {
+          ...s,
+          days: { ...s.days, [date]: { ...day, foods: [...day.foods, entry] } },
+        };
+      });
+    },
+    [ensureDay]
+  );
+
+  /** Save a food to favourites (deduped by name). */
+  const addFavourite = useCallback((fav: Omit<FavFood, "id">) => {
+    setState((s) => {
+      const exists = s.settings.favourites.some(
+        (f) => f.name.toLowerCase() === fav.name.toLowerCase()
+      );
+      if (exists) return s;
+      const entry: FavFood = { ...fav, id: genId() };
+      return {
+        ...s,
+        settings: { ...s.settings, favourites: [entry, ...s.settings.favourites] },
+      };
+    });
+  }, []);
+
+  const removeFavourite = useCallback((id: string) => {
+    setState((s) => ({
+      ...s,
+      settings: {
+        ...s.settings,
+        favourites: s.settings.favourites.filter((f) => f.id !== id),
+      },
+    }));
+  }, []);
+
+  const isFavourite = useCallback(
+    (name: string) =>
+      state.settings.favourites.some(
+        (f) => f.name.toLowerCase() === name.toLowerCase()
+      ),
+    [state.settings.favourites]
+  );
+
+  /** Copy the previous day's foods into `date`. Returns how many were copied. */
+  const copyPreviousDay = useCallback(
+    (date: string): number => {
+      const prev = addDays(date, -1);
+      let count = 0;
+      setState((s) => {
+        const from = s.days[prev];
+        if (!from || from.foods.length === 0) return s;
+        const now = Date.now();
+        const copies: FoodEntry[] = from.foods.map((f, i) => ({
+          ...f,
+          id: genId(),
+          createdAt: now + i,
+        }));
+        count = copies.length;
+        const day = ensureDay(s, date);
+        return {
+          ...s,
+          days: { ...s.days, [date]: { ...day, foods: [...day.foods, ...copies] } },
+        };
+      });
+      return count;
+    },
+    [ensureDay]
+  );
+
+  /** Replace the entire app state (used when importing a backup). */
+  const importState = useCallback((next: AppState) => {
+    setState(next);
   }, []);
 
   const today = toDateKey();
@@ -126,21 +364,45 @@ export function useStore() {
       state,
       today,
       addFoodsFromText,
+      addBarcodeFood,
+      toggleJunk,
       updateFood,
       deleteFood,
+      addExerciseFromText,
+      updateExercise,
+      deleteExercise,
       setBodyweight,
       setTargets,
+      applyProfile,
       setSettings,
+      quickAddFav,
+      addFavourite,
+      removeFavourite,
+      isFavourite,
+      copyPreviousDay,
+      importState,
     }),
     [
       state,
       today,
       addFoodsFromText,
+      addBarcodeFood,
+      toggleJunk,
       updateFood,
       deleteFood,
+      addExerciseFromText,
+      updateExercise,
+      deleteExercise,
       setBodyweight,
       setTargets,
+      applyProfile,
       setSettings,
+      quickAddFav,
+      addFavourite,
+      removeFavourite,
+      isFavourite,
+      copyPreviousDay,
+      importState,
     ]
   );
 }

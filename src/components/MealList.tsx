@@ -47,10 +47,14 @@ export function MealList({ foods, onEdit, onDelete }: Props) {
             </div>
             {items.map((f) => (
               <div className="food-item" key={f.id}>
+                {f.photo && (
+                  <img className="fi-photo" src={f.photo} alt="" onClick={() => onEdit(f)} />
+                )}
                 <div className="fi-main" onClick={() => onEdit(f)}>
                   <div className="fi-name">
                     {f.name}
                     {f.estimated && <span className="est-tag">est</span>}
+                    {f.junk && <span className="junk-tag">junk</span>}
                   </div>
                   <div className="fi-qty">{f.quantity}</div>
                   <div className="fi-macros">

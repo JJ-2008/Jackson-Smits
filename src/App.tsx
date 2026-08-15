@@ -1,29 +1,47 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useStore, guessMeal } from "./hooks/useStore";
 import { dayTotals } from "./lib/nutrition";
+import { totalBurn, hadStrength, exerciseAdjustedTargets } from "./lib/exercise";
 import { addDays, formatLongDate, isToday } from "./lib/date";
-import type { FoodEntry, WeightUnit } from "./types";
+import { recentFoods } from "./lib/recents";
+import { exportBackup } from "./lib/backup";
+import type { FavFood, FoodEntry } from "./types";
 
+import { SplashScreen } from "./components/SplashScreen";
 import { CalorieRing } from "./components/CalorieRing";
 import { MacroCards, MacroRows } from "./components/MacroDisplay";
 import { FoodInput } from "./components/FoodInput";
+import { QuickAdd } from "./components/QuickAdd";
 import { MealList } from "./components/MealList";
 import { NextMeal } from "./components/NextMeal";
 import { EditFoodModal } from "./components/EditFoodModal";
 import { SettingsModal } from "./components/SettingsModal";
-import { WeightView } from "./components/WeightView";
+import { FoodSearchModal } from "./components/FoodSearchModal";
+import { ExerciseView } from "./components/ExerciseView";
 import { HistoryView } from "./components/HistoryView";
+import { StreakTable } from "./components/StreakTable";
 
-type Tab = "today" | "history" | "weight";
+// Barcode scanning pulls in a sizeable decoder library — load it on demand.
+const BarcodeScanner = lazy(() =>
+  import("./components/BarcodeScanner").then((m) => ({ default: m.BarcodeScanner }))
+);
+
+type Tab = "today" | "history" | "exercise";
+
+// Show the splash once per app launch (not on every re-render / tab switch).
+let splashShown = false;
 
 export default function App() {
   const store = useStore();
   const { state, today } = store;
 
+  const [showSplash, setShowSplash] = useState(!splashShown);
   const [tab, setTab] = useState<Tab>("today");
   const [viewDate, setViewDate] = useState(today);
   const [editing, setEditing] = useState<FoodEntry | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -35,13 +53,59 @@ export default function App() {
   const day = state.days[viewDate];
   const foods = day?.foods ?? [];
   const totals = useMemo(() => dayTotals(day), [day]);
-  const targets = state.settings.targets;
+  const baseTargets = state.settings.targets;
+
+  // Exercise "adds back" calories: the dashboard, remaining totals and the
+  // next-meal suggestion all run off exercise-adjusted targets for the day.
+  const burn = totalBurn(day?.exercises);
+  const targets = useMemo(
+    () => exerciseAdjustedTargets(baseTargets, burn, hadStrength(day?.exercises)),
+    [baseTargets, burn, day?.exercises]
+  );
+
+  const favourites = state.settings.favourites;
+  const recents = useMemo(() => recentFoods(state, 8), [state]);
+  const canCopyYesterday = (state.days[addDays(viewDate, -1)]?.foods.length ?? 0) > 0;
 
   const handleAdd = (text: string, meal: (typeof foods)[number]["meal"]) => {
     const n = store.addFoodsFromText(viewDate, text, meal);
     setToast(n > 0 ? `Added ${n} item${n > 1 ? "s" : ""}` : "Couldn't parse that — try again");
     return n;
   };
+
+  const quickAdd = (fav: FavFood) => {
+    store.quickAddFav(viewDate, fav, guessMeal());
+    setToast(`Added ${fav.name}`);
+  };
+
+  const toggleFavourite = (fav: Omit<FavFood, "id">) => {
+    const existing = favourites.find(
+      (f) => f.name.toLowerCase() === fav.name.toLowerCase()
+    );
+    if (existing) {
+      store.removeFavourite(existing.id);
+      setToast("Removed from favourites");
+    } else {
+      store.addFavourite(fav);
+      setToast("Saved to favourites ⭐");
+    }
+  };
+
+  const sameAsYesterday = () => {
+    const n = store.copyPreviousDay(viewDate);
+    setToast(n > 0 ? `Copied ${n} item${n > 1 ? "s" : ""} from yesterday` : "Nothing to copy");
+  };
+
+  if (showSplash) {
+    return (
+      <SplashScreen
+        onDone={() => {
+          splashShown = true;
+          setShowSplash(false);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="app">
@@ -73,12 +137,37 @@ export default function App() {
         <>
           <div className="card dash">
             <CalorieRing consumed={totals.calories} target={targets.calories} />
+            {burn > 0 && (
+              <div className="burn-badge" onClick={() => setTab("exercise")}>
+                🔥 +{burn} kcal from exercise · target raised to{" "}
+                {targets.calories.toLocaleString()}
+              </div>
+            )}
             <MacroCards totals={totals} targets={targets} />
           </div>
 
-          <FoodInput defaultMeal={guessMeal()} onAdd={handleAdd} />
+          <FoodInput
+            defaultMeal={guessMeal()}
+            onAdd={handleAdd}
+            onScan={() => setShowScanner(true)}
+          />
 
-          <NextMeal foods={foods} targets={targets} />
+          <QuickAdd
+            favourites={favourites}
+            recents={recents}
+            canCopyYesterday={canCopyYesterday}
+            onQuickAdd={quickAdd}
+            onRemoveFavourite={store.removeFavourite}
+            onSaveRecentAsFav={(f) => toggleFavourite(f)}
+            onSameAsYesterday={sameAsYesterday}
+            onOpenSearch={() => setShowSearch(true)}
+          />
+
+          <NextMeal
+            foods={foods}
+            targets={targets}
+            accutaneMode={state.settings.accutaneMode}
+          />
 
           <div className="card">
             <h2 className="section-title">Macro progress</h2>
@@ -93,21 +182,30 @@ export default function App() {
         </>
       )}
 
-      {tab === "history" && <HistoryView state={state} today={today} />}
+      {tab === "history" && (
+        <>
+          <StreakTable state={state} today={today} />
+          <HistoryView state={state} today={today} />
+        </>
+      )}
 
-      {tab === "weight" && (
-        <WeightView
+      {tab === "exercise" && (
+        <ExerciseView
           state={state}
-          today={today}
-          onSetWeight={store.setBodyweight}
-          onSetUnit={(u: WeightUnit) => store.setSettings({ weightUnit: u })}
+          viewDate={viewDate}
+          baseTargets={baseTargets}
+          onAdd={(text, weightKg) => store.addExerciseFromText(viewDate, text, weightKg)}
+          onDelete={(id) => store.deleteExercise(viewDate, id)}
+          onToast={setToast}
         />
       )}
 
       {editing && (
         <EditFoodModal
           food={editing}
+          isFavourite={store.isFavourite(editing.name)}
           onSave={(patch) => store.updateFood(viewDate, editing.id, patch)}
+          onToggleFavourite={toggleFavourite}
           onDelete={() => store.deleteFood(viewDate, editing.id)}
           onClose={() => setEditing(null)}
         />
@@ -115,10 +213,42 @@ export default function App() {
 
       {showSettings && (
         <SettingsModal
-          targets={targets}
-          onSave={store.setTargets}
+          settings={state.settings}
+          onApplyProfile={store.applyProfile}
+          onSetTargets={store.setTargets}
+          onSetSettings={store.setSettings}
+          onExportBackup={() => {
+            exportBackup(state);
+            setToast("Backup downloaded");
+          }}
+          onImportState={store.importState}
+          onToast={setToast}
           onClose={() => setShowSettings(false)}
         />
+      )}
+
+      {showSearch && (
+        <FoodSearchModal
+          defaultMeal={guessMeal()}
+          onAdd={(food, meal) => {
+            store.addBarcodeFood(viewDate, food, meal);
+            setToast(`Added ${food.name}`);
+          }}
+          onClose={() => setShowSearch(false)}
+        />
+      )}
+
+      {showScanner && (
+        <Suspense fallback={<div className="toast">Loading scanner…</div>}>
+          <BarcodeScanner
+            defaultMeal={guessMeal()}
+            onAdd={(food, meal) => {
+              store.addBarcodeFood(viewDate, food, meal);
+              setToast(`Added ${food.name}`);
+            }}
+            onClose={() => setShowScanner(false)}
+          />
+        </Suspense>
       )}
 
       {toast && <div className="toast">{toast}</div>}
@@ -133,9 +263,9 @@ export default function App() {
             <span className="ico">▤</span>
             History
           </button>
-          <button className={`nav-btn${tab === "weight" ? " active" : ""}`} onClick={() => setTab("weight")}>
-            <span className="ico">⚖</span>
-            Weight
+          <button className={`nav-btn${tab === "exercise" ? " active" : ""}`} onClick={() => setTab("exercise")}>
+            <span className="ico">🏋️</span>
+            Exercise
           </button>
         </div>
       </nav>
