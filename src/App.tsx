@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useStore, guessMeal } from "./hooks/useStore";
 import { dayTotals } from "./lib/nutrition";
 import { addDays, formatLongDate, isToday } from "./lib/date";
@@ -13,6 +13,12 @@ import { EditFoodModal } from "./components/EditFoodModal";
 import { SettingsModal } from "./components/SettingsModal";
 import { WeightView } from "./components/WeightView";
 import { HistoryView } from "./components/HistoryView";
+import { StreakTable } from "./components/StreakTable";
+
+// Barcode scanning pulls in a sizeable decoder library — load it on demand.
+const BarcodeScanner = lazy(() =>
+  import("./components/BarcodeScanner").then((m) => ({ default: m.BarcodeScanner }))
+);
 
 type Tab = "today" | "history" | "weight";
 
@@ -24,6 +30,7 @@ export default function App() {
   const [viewDate, setViewDate] = useState(today);
   const [editing, setEditing] = useState<FoodEntry | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,9 +83,17 @@ export default function App() {
             <MacroCards totals={totals} targets={targets} />
           </div>
 
-          <FoodInput defaultMeal={guessMeal()} onAdd={handleAdd} />
+          <FoodInput
+            defaultMeal={guessMeal()}
+            onAdd={handleAdd}
+            onScan={() => setShowScanner(true)}
+          />
 
-          <NextMeal foods={foods} targets={targets} />
+          <NextMeal
+            foods={foods}
+            targets={targets}
+            accutaneMode={state.settings.accutaneMode}
+          />
 
           <div className="card">
             <h2 className="section-title">Macro progress</h2>
@@ -93,7 +108,12 @@ export default function App() {
         </>
       )}
 
-      {tab === "history" && <HistoryView state={state} today={today} />}
+      {tab === "history" && (
+        <>
+          <StreakTable state={state} today={today} />
+          <HistoryView state={state} today={today} />
+        </>
+      )}
 
       {tab === "weight" && (
         <WeightView
@@ -115,10 +135,25 @@ export default function App() {
 
       {showSettings && (
         <SettingsModal
-          targets={targets}
-          onSave={store.setTargets}
+          settings={state.settings}
+          onApplyProfile={store.applyProfile}
+          onSetTargets={store.setTargets}
+          onSetSettings={store.setSettings}
           onClose={() => setShowSettings(false)}
         />
+      )}
+
+      {showScanner && (
+        <Suspense fallback={<div className="toast">Loading scanner…</div>}>
+          <BarcodeScanner
+            defaultMeal={guessMeal()}
+            onAdd={(food, meal) => {
+              store.addBarcodeFood(viewDate, food, meal);
+              setToast(`Added ${food.name}`);
+            }}
+            onClose={() => setShowScanner(false)}
+          />
+        </Suspense>
       )}
 
       {toast && <div className="toast">{toast}</div>}

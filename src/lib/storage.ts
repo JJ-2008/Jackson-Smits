@@ -5,6 +5,8 @@ const KEY = "cutting-tracker:v1";
 export const DEFAULT_SETTINGS: Settings = {
   targets: { calories: 2400, protein: 200, carbs: 235, fat: 70 },
   weightUnit: "kg",
+  autoTargets: false,
+  accutaneMode: false,
   mealTimes: { Breakfast: 8, Lunch: 13, Dinner: 19, Snacks: 16 },
 };
 

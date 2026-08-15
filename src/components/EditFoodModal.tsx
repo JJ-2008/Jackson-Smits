@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FoodEntry, MealType } from "../types";
 import { MEAL_TYPES } from "../types";
+import { compressImage } from "../lib/photo";
 
 interface Props {
   food: FoodEntry;
@@ -17,6 +18,19 @@ export function EditFoodModal({ food, onSave, onDelete, onClose }: Props) {
   const [protein, setProtein] = useState(String(round(food.protein)));
   const [carbs, setCarbs] = useState(String(round(food.carbs)));
   const [fat, setFat] = useState(String(round(food.fat)));
+  const [junk, setJunk] = useState(!!food.junk);
+  const [photo, setPhoto] = useState<string | undefined>(food.photo);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const onPickPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setPhoto(await compressImage(file));
+    } catch {
+      /* ignore unreadable images */
+    }
+  };
 
   const save = () => {
     onSave({
@@ -27,6 +41,8 @@ export function EditFoodModal({ food, onSave, onDelete, onClose }: Props) {
       protein: num(protein),
       carbs: num(carbs),
       fat: num(fat),
+      junk,
+      photo,
     });
     onClose();
   };
@@ -61,6 +77,33 @@ export function EditFoodModal({ food, onSave, onDelete, onClose }: Props) {
             ))}
           </div>
         </div>
+
+        <div className="edit-extras">
+          <button
+            className={`chip-toggle${junk ? " on" : ""}`}
+            onClick={() => setJunk((j) => !j)}
+          >
+            {junk ? "🍫 Junk food" : "Mark as junk"}
+          </button>
+          <button className="chip-toggle" onClick={() => fileRef.current?.click()}>
+            {photo ? "📷 Change photo" : "📷 Add photo"}
+          </button>
+          {photo && (
+            <button className="chip-toggle" onClick={() => setPhoto(undefined)}>
+              Remove photo
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: "none" }}
+            onChange={onPickPhoto}
+          />
+        </div>
+        {photo && <img className="edit-photo" src={photo} alt="meal" />}
+
         <div className="field-grid">
           <div className="field">
             <label>Calories</label>

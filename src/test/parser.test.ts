@@ -112,9 +112,23 @@ describe("next-meal suggestion (cutting logic)", () => {
     const s = suggestNextMeal(foods, targets, now);
     expect(s.remaining.calories).toBe(2400 - 233);
     expect(s.remaining.protein).toBe(200 - 8);
-    expect(s.items.length).toBeGreaterThan(0);
-    expect(s.macros.protein).toBeGreaterThan(0);
+    expect(s.options.length).toBeGreaterThan(1); // rerollable options
+    expect(s.options[0].items.length).toBeGreaterThan(0);
+    expect(s.options[0].macros.protein).toBeGreaterThan(0);
     // recommended time should be a parseable time string
     expect(s.time).toMatch(/\d{1,2}:\d{2}\s(AM|PM)/);
+  });
+
+  it("offers a fattier option and Accutane guidance when enabled", () => {
+    const now = new Date();
+    now.setHours(12, 0, 0, 0);
+    const s = suggestNextMeal([], { calories: 2400, protein: 200, carbs: 235, fat: 70 }, now, true);
+    // multiple distinct options to reroll through
+    const labels = new Set(s.options.map((o) => o.label));
+    expect(labels.size).toBeGreaterThan(1);
+    // at least one option should be notably fattier (e.g. salmon)
+    expect(Math.max(...s.options.map((o) => o.macros.fat))).toBeGreaterThan(10);
+    expect(s.accutane).toBeTruthy();
+    expect(s.accutane!.text.toLowerCase()).toContain("fat");
   });
 });

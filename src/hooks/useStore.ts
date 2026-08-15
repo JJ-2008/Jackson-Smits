@@ -3,13 +3,17 @@ import type {
   AppState,
   DayLog,
   FoodEntry,
+  Macros,
   MealType,
+  Profile,
   Settings,
   Targets,
 } from "../types";
 import { loadState, saveState } from "../lib/storage";
 import { toDateKey } from "../lib/date";
 import { parseMeal } from "../lib/parser";
+import { autoJunk } from "../data/foodTags";
+import { computeTargets } from "../lib/goals";
 
 let idCounter = 0;
 const genId = () =>
@@ -52,6 +56,8 @@ export function useStore() {
         protein: p.protein,
         carbs: p.carbs,
         fat: p.fat,
+        junk: autoJunk(p.name),
+        source: "text",
       }));
       setState((s) => {
         const day = ensureDay(s, date);
@@ -104,6 +110,57 @@ export function useStore() {
     });
   }, []);
 
+  /** Add a food from a scanned barcode product with computed macros. */
+  const addBarcodeFood = useCallback(
+    (
+      date: string,
+      food: { name: string; quantity: string; macros: Macros },
+      meal: MealType
+    ) => {
+      setState((s) => {
+        const day = ensureDay(s, date);
+        const entry: FoodEntry = {
+          id: genId(),
+          name: food.name,
+          quantity: food.quantity,
+          meal,
+          estimated: true,
+          createdAt: Date.now(),
+          calories: Math.round(food.macros.calories),
+          protein: Math.round(food.macros.protein * 10) / 10,
+          carbs: Math.round(food.macros.carbs * 10) / 10,
+          fat: Math.round(food.macros.fat * 10) / 10,
+          junk: autoJunk(food.name),
+          source: "barcode",
+        };
+        return {
+          ...s,
+          days: { ...s.days, [date]: { ...day, foods: [...day.foods, entry] } },
+        };
+      });
+    },
+    [ensureDay]
+  );
+
+  const toggleJunk = useCallback((date: string, id: string) => {
+    setState((s) => {
+      const day = s.days[date];
+      if (!day) return s;
+      return {
+        ...s,
+        days: {
+          ...s.days,
+          [date]: {
+            ...day,
+            foods: day.foods.map((f) =>
+              f.id === id ? { ...f, junk: !f.junk } : f
+            ),
+          },
+        },
+      };
+    });
+  }, []);
+
   const setBodyweight = useCallback((date: string, weight: number | undefined) => {
     setState((s) => {
       const day = s.days[date] ?? { date, foods: [] };
@@ -112,7 +169,24 @@ export function useStore() {
   }, []);
 
   const setTargets = useCallback((targets: Targets) => {
-    setState((s) => ({ ...s, settings: { ...s.settings, targets } }));
+    // Manually editing targets turns off auto-calculation.
+    setState((s) => ({
+      ...s,
+      settings: { ...s.settings, targets, autoTargets: false },
+    }));
+  }, []);
+
+  /** Save a profile and (re)calculate targets from it automatically. */
+  const applyProfile = useCallback((profile: Profile) => {
+    setState((s) => ({
+      ...s,
+      settings: {
+        ...s.settings,
+        profile,
+        autoTargets: true,
+        targets: computeTargets(profile),
+      },
+    }));
   }, []);
 
   const setSettings = useCallback((patch: Partial<Settings>) => {
@@ -126,20 +200,26 @@ export function useStore() {
       state,
       today,
       addFoodsFromText,
+      addBarcodeFood,
+      toggleJunk,
       updateFood,
       deleteFood,
       setBodyweight,
       setTargets,
+      applyProfile,
       setSettings,
     }),
     [
       state,
       today,
       addFoodsFromText,
+      addBarcodeFood,
+      toggleJunk,
       updateFood,
       deleteFood,
       setBodyweight,
       setTargets,
+      applyProfile,
       setSettings,
     ]
   );
