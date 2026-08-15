@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import type { Activity, GoalType, Profile, Settings, Targets } from "../types";
+import { useMemo, useRef, useState } from "react";
+import type { Activity, AppState, GoalType, Profile, Settings, Targets } from "../types";
 import {
   ACTIVITY_LABEL,
   GOAL_LABEL,
@@ -7,12 +7,16 @@ import {
   parseGoalText,
   DEFAULT_PROFILE,
 } from "../lib/goals";
+import { parseBackup, readFileText } from "../lib/backup";
 
 interface Props {
   settings: Settings;
   onApplyProfile: (p: Profile) => void;
   onSetTargets: (t: Targets) => void;
   onSetSettings: (patch: Partial<Settings>) => void;
+  onExportBackup: () => void;
+  onImportState: (state: AppState) => void;
+  onToast: (msg: string) => void;
   onClose: () => void;
 }
 
@@ -26,8 +30,30 @@ export function SettingsModal({
   onApplyProfile,
   onSetTargets,
   onSetSettings,
+  onExportBackup,
+  onImportState,
+  onToast,
   onClose,
 }: Props) {
+  const importRef = useRef<HTMLInputElement>(null);
+
+  const onPickBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      const text = await readFileText(file);
+      const state = parseBackup(text);
+      const dayCount = Object.keys(state.days).length;
+      if (!confirm(`Restore this backup? It has ${dayCount} day(s) of data and will replace what's currently in the app.`))
+        return;
+      onImportState(state);
+      onToast("Backup restored");
+      onClose();
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : "Couldn't import that file");
+    }
+  };
   const initial: Profile = settings.profile ?? { ...DEFAULT_PROFILE };
 
   const [goalText, setGoalText] = useState(initial.goalText ?? "");
@@ -203,6 +229,29 @@ export function SettingsModal({
               <span />
             </button>
           </div>
+        </div>
+
+        <div className="settings-section">
+          <div className="ss-title">Your data &amp; backup</div>
+          <div className="toggle-sub" style={{ marginBottom: 10 }}>
+            Everything is stored on this device only. Export a backup regularly so
+            you don't lose your history if you clear your browser or switch phones.
+          </div>
+          <div className="data-actions">
+            <button className="btn btn-primary" onClick={onExportBackup}>
+              ⬇ Export backup
+            </button>
+            <button className="btn btn-ghost" onClick={() => importRef.current?.click()}>
+              ⬆ Import backup
+            </button>
+          </div>
+          <input
+            ref={importRef}
+            type="file"
+            accept="application/json,.json"
+            style={{ display: "none" }}
+            onChange={onPickBackup}
+          />
         </div>
 
         <p className="hint">

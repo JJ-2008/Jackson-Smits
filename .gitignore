@@ -14,3 +14,6 @@ yarn-error.log*
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# keep app icons (public) despite the *.png rule above
+!public/*.png

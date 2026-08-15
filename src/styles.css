@@ -1361,3 +1361,272 @@ textarea {
   font-size: 20px;
   flex-shrink: 0;
 }
+
+/* ---------- Splash screen ---------- */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(700px 500px at 50% 30%, rgba(74, 222, 128, 0.14), transparent 60%),
+    var(--bg);
+  transition: opacity 0.45s ease, transform 0.45s ease, filter 0.45s ease;
+}
+.splash-leaving {
+  opacity: 0;
+  transform: scale(1.06);
+  filter: blur(6px);
+  pointer-events: none;
+}
+.splash-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.splash-ring {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  animation: splash-pop 0.6s cubic-bezier(0.2, 0.9, 0.2, 1.2) both;
+}
+.splash-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.splash-track {
+  fill: none;
+  stroke: var(--ring-track);
+  stroke-width: 8;
+}
+.splash-progress {
+  fill: none;
+  stroke: url(#splashGrad);
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 327;
+  stroke-dashoffset: 327;
+  animation: splash-draw 1.3s cubic-bezier(0.3, 0.8, 0.3, 1) 0.15s forwards;
+}
+@keyframes splash-draw {
+  to {
+    stroke-dashoffset: 82; /* ~75% filled */
+  }
+}
+@keyframes splash-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+.splash-flame {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 46px;
+  animation: flame-in 0.6s ease 0.5s both;
+}
+@keyframes flame-in {
+  from {
+    opacity: 0;
+    transform: scale(0.4) translateY(8px);
+  }
+}
+.splash-word {
+  margin-top: 26px;
+  display: flex;
+  gap: 4px;
+  font-size: 40px;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  padding-left: 0.14em;
+}
+.splash-word span {
+  display: inline-block;
+  background: linear-gradient(180deg, #eafff1, #7be6a6);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: letter-rise 0.55s cubic-bezier(0.2, 0.9, 0.2, 1.2) both;
+}
+@keyframes letter-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+.splash-dots {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.splash-dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: block;
+  animation: dot-pop 0.4s cubic-bezier(0.2, 0.9, 0.2, 1.4) both;
+}
+@keyframes dot-pop {
+  from {
+    opacity: 0;
+    transform: scale(0);
+  }
+}
+.splash-tag {
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--faint);
+  letter-spacing: 0.04em;
+  animation: fade-up 0.6s ease 1s both;
+}
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ---------- Quick add ---------- */
+.qa-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.qa-action {
+  flex: 1;
+  min-width: 130px;
+  padding: 11px;
+  border-radius: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--stroke-2);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+}
+.qa-action:active {
+  background: var(--card-2);
+}
+.qa-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+  font-weight: 700;
+  margin: 14px 0 8px;
+}
+.qa-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.qa-chip {
+  display: flex;
+  align-items: stretch;
+  background: var(--card-2);
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.qa-chip.fav {
+  border-color: rgba(74, 222, 128, 0.3);
+}
+.qa-chip-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 8px 10px;
+  gap: 1px;
+}
+.qa-chip-body:active {
+  background: var(--stroke);
+}
+.qa-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qa-cal {
+  font-size: 11px;
+  color: var(--faint);
+}
+.qa-chip-x {
+  padding: 0 10px;
+  color: var(--faint);
+  font-size: 13px;
+  border-left: 1px solid var(--stroke);
+}
+.qa-chip-x.star {
+  color: var(--accent);
+  font-size: 16px;
+}
+.qa-chip-x:active {
+  background: var(--stroke);
+}
+
+/* favourite toggle state on edit chip */
+.chip-toggle.fav-on {
+  color: #05230f;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* ---------- Food search ---------- */
+.search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+.search-hit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  text-align: left;
+}
+.search-hit:active {
+  background: var(--card-2);
+}
+.sh-name {
+  font-size: 14px;
+  font-weight: 600;
+}
+.sh-brand {
+  font-size: 12px;
+  color: var(--faint);
+  margin-top: 1px;
+}
+.sh-cal {
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+}
+.sh-cal small {
+  font-size: 10px;
+  color: var(--faint);
+  font-weight: 500;
+}
+
+/* ---------- Data / backup ---------- */
+.data-actions {
+  display: flex;
+  gap: 10px;
+}
+.data-actions .btn {
+  flex: 1;
+}

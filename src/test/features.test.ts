@@ -9,8 +9,10 @@ import type { ExerciseEntry } from "../types";
 import { scaleTo } from "../lib/openfoodfacts";
 import { streakSummary } from "../lib/streak";
 import { isJunk, isAcneRisk } from "../data/foodTags";
+import { parseBackup } from "../lib/backup";
+import { recentFoods } from "../lib/recents";
 import type { AppState, DayLog, FoodEntry } from "../types";
-import { DEFAULT_SETTINGS } from "../lib/storage";
+import { DEFAULT_SETTINGS, defaultState } from "../lib/storage";
 
 const mkFood = (p: Partial<FoodEntry>): FoodEntry => ({
   id: Math.random().toString(),
@@ -125,6 +127,52 @@ describe("exercise burn estimation & diet impact", () => {
     // added macro kcal ≈ burn
     const addedKcal = (adj.protein - base.protein) * 4 + (adj.carbs - base.carbs) * 4;
     expect(Math.abs(addedKcal - burn)).toBeLessThanOrEqual(4);
+  });
+});
+
+describe("backup export/import", () => {
+  it("round-trips app state through a backup file", () => {
+    const state: AppState = {
+      days: {
+        "2026-08-15": {
+          date: "2026-08-15",
+          foods: [mkFood({ name: "Chicken breast", calories: 330, protein: 62 })],
+        },
+      },
+      settings: { ...DEFAULT_SETTINGS, accutaneMode: true },
+    };
+    const file = JSON.stringify({ app: "cutting-tracker", version: 1, state });
+    const restored = parseBackup(file);
+    expect(Object.keys(restored.days)).toEqual(["2026-08-15"]);
+    expect(restored.days["2026-08-15"].foods[0].name).toBe("Chicken breast");
+    expect(restored.settings.accutaneMode).toBe(true);
+    expect(restored.settings.favourites).toEqual([]);
+  });
+
+  it("rejects a non-backup file", () => {
+    expect(() => parseBackup(JSON.stringify({ hello: "world" }))).toThrow();
+  });
+});
+
+describe("recent foods", () => {
+  it("returns distinct foods newest-first, excluding favourites", () => {
+    const state = defaultState();
+    state.days["2026-08-15"] = {
+      date: "2026-08-15",
+      foods: [
+        mkFood({ name: "Oats", createdAt: 1 }),
+        mkFood({ name: "Chicken breast", createdAt: 3 }),
+        mkFood({ name: "Oats", createdAt: 5 }), // duplicate, newer
+      ],
+    };
+    state.settings.favourites = [
+      { id: "f1", name: "Chicken breast", quantity: "150 g", calories: 248, protein: 46, carbs: 0, fat: 5 },
+    ];
+    const recents = recentFoods(state, 8);
+    const names = recents.map((r) => r.name);
+    expect(names).toContain("Oats");
+    expect(names).not.toContain("Chicken breast"); // it's a favourite
+    expect(names.filter((n) => n === "Oats").length).toBe(1); // deduped
   });
 });
 

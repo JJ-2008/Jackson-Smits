@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS: Settings = {
   weightUnit: "kg",
   autoTargets: false,
   accutaneMode: false,
+  favourites: [],
   mealTimes: { Breakfast: 8, Lunch: 13, Dinner: 19, Snacks: 16 },
 };
 

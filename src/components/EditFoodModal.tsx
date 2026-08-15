@@ -5,12 +5,29 @@ import { compressImage } from "../lib/photo";
 
 interface Props {
   food: FoodEntry;
+  isFavourite: boolean;
   onSave: (patch: Partial<FoodEntry>) => void;
+  onToggleFavourite: (fav: {
+    name: string;
+    quantity: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+    junk?: boolean;
+  }) => void;
   onDelete: () => void;
   onClose: () => void;
 }
 
-export function EditFoodModal({ food, onSave, onDelete, onClose }: Props) {
+export function EditFoodModal({
+  food,
+  isFavourite,
+  onSave,
+  onToggleFavourite,
+  onDelete,
+  onClose,
+}: Props) {
   const [name, setName] = useState(food.name);
   const [quantity, setQuantity] = useState(food.quantity);
   const [meal, setMeal] = useState<MealType>(food.meal);
@@ -79,6 +96,22 @@ export function EditFoodModal({ food, onSave, onDelete, onClose }: Props) {
         </div>
 
         <div className="edit-extras">
+          <button
+            className={`chip-toggle${isFavourite ? " fav-on" : ""}`}
+            onClick={() =>
+              onToggleFavourite({
+                name: name.trim() || food.name,
+                quantity: quantity.trim(),
+                calories: num(calories),
+                protein: num(protein),
+                carbs: num(carbs),
+                fat: num(fat),
+                junk,
+              })
+            }
+          >
+            {isFavourite ? "⭐ Favourited" : "☆ Save favourite"}
+          </button>
           <button
             className={`chip-toggle${junk ? " on" : ""}`}
             onClick={() => setJunk((j) => !j)}

@@ -3,15 +3,20 @@ import { useStore, guessMeal } from "./hooks/useStore";
 import { dayTotals } from "./lib/nutrition";
 import { totalBurn, hadStrength, exerciseAdjustedTargets } from "./lib/exercise";
 import { addDays, formatLongDate, isToday } from "./lib/date";
-import type { FoodEntry } from "./types";
+import { recentFoods } from "./lib/recents";
+import { exportBackup } from "./lib/backup";
+import type { FavFood, FoodEntry } from "./types";
 
+import { SplashScreen } from "./components/SplashScreen";
 import { CalorieRing } from "./components/CalorieRing";
 import { MacroCards, MacroRows } from "./components/MacroDisplay";
 import { FoodInput } from "./components/FoodInput";
+import { QuickAdd } from "./components/QuickAdd";
 import { MealList } from "./components/MealList";
 import { NextMeal } from "./components/NextMeal";
 import { EditFoodModal } from "./components/EditFoodModal";
 import { SettingsModal } from "./components/SettingsModal";
+import { FoodSearchModal } from "./components/FoodSearchModal";
 import { ExerciseView } from "./components/ExerciseView";
 import { HistoryView } from "./components/HistoryView";
 import { StreakTable } from "./components/StreakTable";
@@ -23,15 +28,20 @@ const BarcodeScanner = lazy(() =>
 
 type Tab = "today" | "history" | "exercise";
 
+// Show the splash once per app launch (not on every re-render / tab switch).
+let splashShown = false;
+
 export default function App() {
   const store = useStore();
   const { state, today } = store;
 
+  const [showSplash, setShowSplash] = useState(!splashShown);
   const [tab, setTab] = useState<Tab>("today");
   const [viewDate, setViewDate] = useState(today);
   const [editing, setEditing] = useState<FoodEntry | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -53,11 +63,49 @@ export default function App() {
     [baseTargets, burn, day?.exercises]
   );
 
+  const favourites = state.settings.favourites;
+  const recents = useMemo(() => recentFoods(state, 8), [state]);
+  const canCopyYesterday = (state.days[addDays(viewDate, -1)]?.foods.length ?? 0) > 0;
+
   const handleAdd = (text: string, meal: (typeof foods)[number]["meal"]) => {
     const n = store.addFoodsFromText(viewDate, text, meal);
     setToast(n > 0 ? `Added ${n} item${n > 1 ? "s" : ""}` : "Couldn't parse that — try again");
     return n;
   };
+
+  const quickAdd = (fav: FavFood) => {
+    store.quickAddFav(viewDate, fav, guessMeal());
+    setToast(`Added ${fav.name}`);
+  };
+
+  const toggleFavourite = (fav: Omit<FavFood, "id">) => {
+    const existing = favourites.find(
+      (f) => f.name.toLowerCase() === fav.name.toLowerCase()
+    );
+    if (existing) {
+      store.removeFavourite(existing.id);
+      setToast("Removed from favourites");
+    } else {
+      store.addFavourite(fav);
+      setToast("Saved to favourites ⭐");
+    }
+  };
+
+  const sameAsYesterday = () => {
+    const n = store.copyPreviousDay(viewDate);
+    setToast(n > 0 ? `Copied ${n} item${n > 1 ? "s" : ""} from yesterday` : "Nothing to copy");
+  };
+
+  if (showSplash) {
+    return (
+      <SplashScreen
+        onDone={() => {
+          splashShown = true;
+          setShowSplash(false);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="app">
@@ -104,6 +152,17 @@ export default function App() {
             onScan={() => setShowScanner(true)}
           />
 
+          <QuickAdd
+            favourites={favourites}
+            recents={recents}
+            canCopyYesterday={canCopyYesterday}
+            onQuickAdd={quickAdd}
+            onRemoveFavourite={store.removeFavourite}
+            onSaveRecentAsFav={(f) => toggleFavourite(f)}
+            onSameAsYesterday={sameAsYesterday}
+            onOpenSearch={() => setShowSearch(true)}
+          />
+
           <NextMeal
             foods={foods}
             targets={targets}
@@ -144,7 +203,9 @@ export default function App() {
       {editing && (
         <EditFoodModal
           food={editing}
+          isFavourite={store.isFavourite(editing.name)}
           onSave={(patch) => store.updateFood(viewDate, editing.id, patch)}
+          onToggleFavourite={toggleFavourite}
           onDelete={() => store.deleteFood(viewDate, editing.id)}
           onClose={() => setEditing(null)}
         />
@@ -156,7 +217,24 @@ export default function App() {
           onApplyProfile={store.applyProfile}
           onSetTargets={store.setTargets}
           onSetSettings={store.setSettings}
+          onExportBackup={() => {
+            exportBackup(state);
+            setToast("Backup downloaded");
+          }}
+          onImportState={store.importState}
+          onToast={setToast}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showSearch && (
+        <FoodSearchModal
+          defaultMeal={guessMeal()}
+          onAdd={(food, meal) => {
+            store.addBarcodeFood(viewDate, food, meal);
+            setToast(`Added ${food.name}`);
+          }}
+          onClose={() => setShowSearch(false)}
         />
       )}
 
