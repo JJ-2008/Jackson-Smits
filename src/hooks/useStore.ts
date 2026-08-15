@@ -3,7 +3,6 @@ import type {
   AppState,
   DayLog,
   ExerciseEntry,
-  FavFood,
   FoodEntry,
   Macros,
   MealType,
@@ -265,67 +264,6 @@ export function useStore() {
     setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }));
   }, []);
 
-  /** One-tap log a saved/recent food. */
-  const quickAddFav = useCallback(
-    (date: string, fav: FavFood, meal: MealType) => {
-      setState((s) => {
-        const day = ensureDay(s, date);
-        const entry: FoodEntry = {
-          id: genId(),
-          name: fav.name,
-          quantity: fav.quantity,
-          meal,
-          estimated: true,
-          createdAt: Date.now(),
-          calories: fav.calories,
-          protein: fav.protein,
-          carbs: fav.carbs,
-          fat: fav.fat,
-          junk: fav.junk ?? autoJunk(fav.name),
-          source: "manual",
-        };
-        return {
-          ...s,
-          days: { ...s.days, [date]: { ...day, foods: [...day.foods, entry] } },
-        };
-      });
-    },
-    [ensureDay]
-  );
-
-  /** Save a food to favourites (deduped by name). */
-  const addFavourite = useCallback((fav: Omit<FavFood, "id">) => {
-    setState((s) => {
-      const exists = s.settings.favourites.some(
-        (f) => f.name.toLowerCase() === fav.name.toLowerCase()
-      );
-      if (exists) return s;
-      const entry: FavFood = { ...fav, id: genId() };
-      return {
-        ...s,
-        settings: { ...s.settings, favourites: [entry, ...s.settings.favourites] },
-      };
-    });
-  }, []);
-
-  const removeFavourite = useCallback((id: string) => {
-    setState((s) => ({
-      ...s,
-      settings: {
-        ...s.settings,
-        favourites: s.settings.favourites.filter((f) => f.id !== id),
-      },
-    }));
-  }, []);
-
-  const isFavourite = useCallback(
-    (name: string) =>
-      state.settings.favourites.some(
-        (f) => f.name.toLowerCase() === name.toLowerCase()
-      ),
-    [state.settings.favourites]
-  );
-
   /** Copy the previous day's foods into `date`. Returns how many were copied. */
   const copyPreviousDay = useCallback(
     (date: string): number => {
@@ -375,10 +313,6 @@ export function useStore() {
       setTargets,
       applyProfile,
       setSettings,
-      quickAddFav,
-      addFavourite,
-      removeFavourite,
-      isFavourite,
       copyPreviousDay,
       importState,
     }),
@@ -397,10 +331,6 @@ export function useStore() {
       setTargets,
       applyProfile,
       setSettings,
-      quickAddFav,
-      addFavourite,
-      removeFavourite,
-      isFavourite,
       copyPreviousDay,
       importState,
     ]

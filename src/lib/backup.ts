@@ -45,7 +45,6 @@ export function parseBackup(text: string): AppState {
       ...s.settings,
       targets: { ...DEFAULT_SETTINGS.targets, ...s.settings?.targets },
       mealTimes: { ...DEFAULT_SETTINGS.mealTimes, ...s.settings?.mealTimes },
-      favourites: s.settings?.favourites ?? [],
     },
   };
 }

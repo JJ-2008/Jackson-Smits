@@ -65,21 +65,12 @@ export interface Profile {
   goalText?: string; // free-text description the user typed
 }
 
-/** A saved food the user can re-log with one tap. */
-export interface FavFood extends Macros {
-  id: string;
-  name: string;
-  quantity: string;
-  junk?: boolean;
-}
-
 export interface Settings {
   targets: Targets;
   weightUnit: WeightUnit;
   autoTargets: boolean; // if true, targets are derived from the profile
   profile?: Profile;
   accutaneMode: boolean; // show the "take Accutane with fattiest meal" helper
-  favourites: FavFood[]; // saved foods for one-tap logging
   // approximate meal window start hours (24h)
   mealTimes: {
     Breakfast: number;

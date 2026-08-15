@@ -3,15 +3,14 @@ import { useStore, guessMeal } from "./hooks/useStore";
 import { dayTotals } from "./lib/nutrition";
 import { totalBurn, hadStrength, exerciseAdjustedTargets } from "./lib/exercise";
 import { addDays, formatLongDate, isToday } from "./lib/date";
-import { recentFoods } from "./lib/recents";
 import { exportBackup } from "./lib/backup";
-import type { FavFood, FoodEntry } from "./types";
+import type { FoodEntry } from "./types";
 
 import { SplashScreen } from "./components/SplashScreen";
 import { CalorieRing } from "./components/CalorieRing";
 import { MacroCards, MacroRows } from "./components/MacroDisplay";
 import { FoodInput } from "./components/FoodInput";
-import { QuickAdd } from "./components/QuickAdd";
+import { QuickActions } from "./components/QuickActions";
 import { MealList } from "./components/MealList";
 import { NextMeal } from "./components/NextMeal";
 import { EditFoodModal } from "./components/EditFoodModal";
@@ -63,32 +62,12 @@ export default function App() {
     [baseTargets, burn, day?.exercises]
   );
 
-  const favourites = state.settings.favourites;
-  const recents = useMemo(() => recentFoods(state, 8), [state]);
   const canCopyYesterday = (state.days[addDays(viewDate, -1)]?.foods.length ?? 0) > 0;
 
   const handleAdd = (text: string, meal: (typeof foods)[number]["meal"]) => {
     const n = store.addFoodsFromText(viewDate, text, meal);
     setToast(n > 0 ? `Added ${n} item${n > 1 ? "s" : ""}` : "Couldn't parse that — try again");
     return n;
-  };
-
-  const quickAdd = (fav: FavFood) => {
-    store.quickAddFav(viewDate, fav, guessMeal());
-    setToast(`Added ${fav.name}`);
-  };
-
-  const toggleFavourite = (fav: Omit<FavFood, "id">) => {
-    const existing = favourites.find(
-      (f) => f.name.toLowerCase() === fav.name.toLowerCase()
-    );
-    if (existing) {
-      store.removeFavourite(existing.id);
-      setToast("Removed from favourites");
-    } else {
-      store.addFavourite(fav);
-      setToast("Saved to favourites ⭐");
-    }
   };
 
   const sameAsYesterday = () => {
@@ -152,13 +131,8 @@ export default function App() {
             onScan={() => setShowScanner(true)}
           />
 
-          <QuickAdd
-            favourites={favourites}
-            recents={recents}
+          <QuickActions
             canCopyYesterday={canCopyYesterday}
-            onQuickAdd={quickAdd}
-            onRemoveFavourite={store.removeFavourite}
-            onSaveRecentAsFav={(f) => toggleFavourite(f)}
             onSameAsYesterday={sameAsYesterday}
             onOpenSearch={() => setShowSearch(true)}
           />
@@ -203,9 +177,7 @@ export default function App() {
       {editing && (
         <EditFoodModal
           food={editing}
-          isFavourite={store.isFavourite(editing.name)}
           onSave={(patch) => store.updateFood(viewDate, editing.id, patch)}
-          onToggleFavourite={toggleFavourite}
           onDelete={() => store.deleteFood(viewDate, editing.id)}
           onClose={() => setEditing(null)}
         />
