@@ -1,8 +1,9 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useStore, guessMeal } from "./hooks/useStore";
 import { dayTotals } from "./lib/nutrition";
+import { totalBurn, hadStrength, exerciseAdjustedTargets } from "./lib/exercise";
 import { addDays, formatLongDate, isToday } from "./lib/date";
-import type { FoodEntry, WeightUnit } from "./types";
+import type { FoodEntry } from "./types";
 
 import { CalorieRing } from "./components/CalorieRing";
 import { MacroCards, MacroRows } from "./components/MacroDisplay";
@@ -11,7 +12,7 @@ import { MealList } from "./components/MealList";
 import { NextMeal } from "./components/NextMeal";
 import { EditFoodModal } from "./components/EditFoodModal";
 import { SettingsModal } from "./components/SettingsModal";
-import { WeightView } from "./components/WeightView";
+import { ExerciseView } from "./components/ExerciseView";
 import { HistoryView } from "./components/HistoryView";
 import { StreakTable } from "./components/StreakTable";
 
@@ -20,7 +21,7 @@ const BarcodeScanner = lazy(() =>
   import("./components/BarcodeScanner").then((m) => ({ default: m.BarcodeScanner }))
 );
 
-type Tab = "today" | "history" | "weight";
+type Tab = "today" | "history" | "exercise";
 
 export default function App() {
   const store = useStore();
@@ -42,7 +43,15 @@ export default function App() {
   const day = state.days[viewDate];
   const foods = day?.foods ?? [];
   const totals = useMemo(() => dayTotals(day), [day]);
-  const targets = state.settings.targets;
+  const baseTargets = state.settings.targets;
+
+  // Exercise "adds back" calories: the dashboard, remaining totals and the
+  // next-meal suggestion all run off exercise-adjusted targets for the day.
+  const burn = totalBurn(day?.exercises);
+  const targets = useMemo(
+    () => exerciseAdjustedTargets(baseTargets, burn, hadStrength(day?.exercises)),
+    [baseTargets, burn, day?.exercises]
+  );
 
   const handleAdd = (text: string, meal: (typeof foods)[number]["meal"]) => {
     const n = store.addFoodsFromText(viewDate, text, meal);
@@ -80,6 +89,12 @@ export default function App() {
         <>
           <div className="card dash">
             <CalorieRing consumed={totals.calories} target={targets.calories} />
+            {burn > 0 && (
+              <div className="burn-badge" onClick={() => setTab("exercise")}>
+                🔥 +{burn} kcal from exercise · target raised to{" "}
+                {targets.calories.toLocaleString()}
+              </div>
+            )}
             <MacroCards totals={totals} targets={targets} />
           </div>
 
@@ -115,12 +130,14 @@ export default function App() {
         </>
       )}
 
-      {tab === "weight" && (
-        <WeightView
+      {tab === "exercise" && (
+        <ExerciseView
           state={state}
-          today={today}
-          onSetWeight={store.setBodyweight}
-          onSetUnit={(u: WeightUnit) => store.setSettings({ weightUnit: u })}
+          viewDate={viewDate}
+          baseTargets={baseTargets}
+          onAdd={(text, weightKg) => store.addExerciseFromText(viewDate, text, weightKg)}
+          onDelete={(id) => store.deleteExercise(viewDate, id)}
+          onToast={setToast}
         />
       )}
 
@@ -168,9 +185,9 @@ export default function App() {
             <span className="ico">▤</span>
             History
           </button>
-          <button className={`nav-btn${tab === "weight" ? " active" : ""}`} onClick={() => setTab("weight")}>
-            <span className="ico">⚖</span>
-            Weight
+          <button className={`nav-btn${tab === "exercise" ? " active" : ""}`} onClick={() => setTab("exercise")}>
+            <span className="ico">🏋️</span>
+            Exercise
           </button>
         </div>
       </nav>

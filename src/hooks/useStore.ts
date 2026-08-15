@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AppState,
   DayLog,
+  ExerciseEntry,
   FoodEntry,
   Macros,
   MealType,
@@ -14,6 +15,7 @@ import { toDateKey } from "../lib/date";
 import { parseMeal } from "../lib/parser";
 import { autoJunk } from "../data/foodTags";
 import { computeTargets } from "../lib/goals";
+import { parseExerciseText } from "../lib/exercise";
 
 let idCounter = 0;
 const genId = () =>
@@ -161,6 +163,75 @@ export function useStore() {
     });
   }, []);
 
+  /** Parse a free-text workout description and log the estimated burn. */
+  const addExerciseFromText = useCallback(
+    (date: string, text: string, weightKg: number): number => {
+      const parsed = parseExerciseText(text, weightKg);
+      if (!parsed.length) return 0;
+      const now = Date.now();
+      const entries: ExerciseEntry[] = parsed.map((p, i) => ({
+        id: genId(),
+        description: p.description,
+        type: p.type,
+        minutes: p.minutes,
+        calories: p.calories,
+        strength: p.strength,
+        createdAt: now + i,
+      }));
+      setState((s) => {
+        const day = ensureDay(s, date);
+        return {
+          ...s,
+          days: {
+            ...s.days,
+            [date]: { ...day, exercises: [...(day.exercises ?? []), ...entries] },
+          },
+        };
+      });
+      return entries.length;
+    },
+    [ensureDay]
+  );
+
+  const updateExercise = useCallback(
+    (date: string, id: string, patch: Partial<ExerciseEntry>) => {
+      setState((s) => {
+        const day = s.days[date];
+        if (!day) return s;
+        return {
+          ...s,
+          days: {
+            ...s.days,
+            [date]: {
+              ...day,
+              exercises: (day.exercises ?? []).map((e) =>
+                e.id === id ? { ...e, ...patch } : e
+              ),
+            },
+          },
+        };
+      });
+    },
+    []
+  );
+
+  const deleteExercise = useCallback((date: string, id: string) => {
+    setState((s) => {
+      const day = s.days[date];
+      if (!day) return s;
+      return {
+        ...s,
+        days: {
+          ...s.days,
+          [date]: {
+            ...day,
+            exercises: (day.exercises ?? []).filter((e) => e.id !== id),
+          },
+        },
+      };
+    });
+  }, []);
+
   const setBodyweight = useCallback((date: string, weight: number | undefined) => {
     setState((s) => {
       const day = s.days[date] ?? { date, foods: [] };
@@ -204,6 +275,9 @@ export function useStore() {
       toggleJunk,
       updateFood,
       deleteFood,
+      addExerciseFromText,
+      updateExercise,
+      deleteExercise,
       setBodyweight,
       setTargets,
       applyProfile,
@@ -217,6 +291,9 @@ export function useStore() {
       toggleJunk,
       updateFood,
       deleteFood,
+      addExerciseFromText,
+      updateExercise,
+      deleteExercise,
       setBodyweight,
       setTargets,
       applyProfile,

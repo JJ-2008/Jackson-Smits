@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { computeTargets, parseGoalText } from "../lib/goals";
+import {
+  parseExerciseText,
+  exerciseAdjustedTargets,
+  totalBurn,
+} from "../lib/exercise";
+import type { ExerciseEntry } from "../types";
 import { scaleTo } from "../lib/openfoodfacts";
 import { streakSummary } from "../lib/streak";
 import { isJunk, isAcneRisk } from "../data/foodTags";
@@ -74,6 +80,51 @@ describe("junk / acne classification", () => {
     expect(isJunk("Sweet potato")).toBe(false);
     expect(isAcneRisk("Sweet potato")).toBe(false);
     expect(isJunk("Greek yogurt")).toBe(false);
+  });
+});
+
+describe("exercise burn estimation & diet impact", () => {
+  it("estimates a duration-based strength workout", () => {
+    const [w] = parseExerciseText("45 min weights", 80);
+    expect(w.type).toBe("Weights");
+    expect(w.strength).toBe(true);
+    expect(w.minutes).toBe(45);
+    // 5 MET * 80kg * 0.75h = 300
+    expect(w.calories).toBeGreaterThan(240);
+    expect(w.calories).toBeLessThan(360);
+  });
+
+  it("estimates a distance-based run", () => {
+    const [r] = parseExerciseText("ran 5k", 80);
+    expect(r.type).toBe("Running");
+    // ~0.95 * 80 * 5 = 380
+    expect(r.calories).toBeGreaterThan(300);
+    expect(r.calories).toBeLessThan(450);
+  });
+
+  it("parses multiple activities and counts steps", () => {
+    const list = parseExerciseText("45 min weights and a 5k run", 80);
+    expect(list.length).toBe(2);
+    const steps = parseExerciseText("10000 steps", 80);
+    expect(steps[0].type).toBe("Walking");
+    expect(steps[0].calories).toBeGreaterThan(150);
+  });
+
+  it("adds the full burn back to targets, mostly as carbs", () => {
+    const base = { calories: 2400, protein: 200, carbs: 235, fat: 70 };
+    const exercises: ExerciseEntry[] = [
+      { id: "1", description: "45 min weights", type: "Weights", minutes: 45, calories: 300, strength: true, createdAt: 0 },
+    ];
+    const burn = totalBurn(exercises);
+    expect(burn).toBe(300);
+    const adj = exerciseAdjustedTargets(base, burn, true);
+    expect(adj.calories).toBe(2700); // full burn added
+    expect(adj.fat).toBe(70); // fat unchanged
+    expect(adj.protein).toBe(215); // +15 for strength recovery
+    expect(adj.carbs).toBeGreaterThan(base.carbs); // rest goes to carbs
+    // added macro kcal ≈ burn
+    const addedKcal = (adj.protein - base.protein) * 4 + (adj.carbs - base.carbs) * 4;
+    expect(Math.abs(addedKcal - burn)).toBeLessThanOrEqual(4);
   });
 });
 

@@ -22,10 +22,22 @@ export interface FoodEntry extends Macros {
   source?: "text" | "barcode" | "manual"; // how it was added
 }
 
+/** A logged workout / activity. */
+export interface ExerciseEntry {
+  id: string;
+  description: string; // display label e.g. "5 km run"
+  type: string; // matched activity, e.g. "Running"
+  minutes?: number; // duration if known
+  calories: number; // estimated calories burned
+  strength: boolean; // resistance training (affects protein bump)
+  createdAt: number; // epoch ms
+}
+
 /** All data recorded for a single calendar day. */
 export interface DayLog {
   date: string; // YYYY-MM-DD
   foods: FoodEntry[];
+  exercises?: ExerciseEntry[];
   bodyweight?: number; // kg or lb depending on settings.weightUnit
 }
 
