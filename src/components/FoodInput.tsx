@@ -93,7 +93,7 @@ export function FoodInput({ defaultMeal, onAdd, onScan, onPhoto, aiEnabled }: Pr
       <p className="hint">
         {aiEnabled ? (
           <>
-            Describe your meal like you'd say it out loud — Claude works out the
+            Describe your meal like you'd say it out loud — the AI works out the
             items and macros. Everything stays editable.
           </>
         ) : (

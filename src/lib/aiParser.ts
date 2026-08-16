@@ -1,10 +1,10 @@
 /**
- * Claude-powered food parser (bring-your-own-key).
+ * AI food parser powered by Google Gemini (bring-your-own free key).
  *
- * Calls the Anthropic Messages API directly from the browser. The user pastes
- * their own API key in Settings; it is stored only on their device (see
- * aiConfig.ts) and is never included in exported backups. Requests go straight
- * from the phone to api.anthropic.com — nothing is sent to any server we run.
+ * Gemini has a genuinely free tier — no credit card and no business/ABN needed.
+ * The user pastes their own key in Settings; it is stored only on their device
+ * (see aiConfig.ts) and is never included in exported backups. Requests go
+ * straight from the phone to Google — nothing is sent to any server we run.
  */
 import type { Macros } from "../types";
 
@@ -13,7 +13,7 @@ export interface AIFood extends Macros {
   quantity: string;
 }
 
-const ENDPOINT = "https://api.anthropic.com/v1/messages";
+const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const SYSTEM_PROMPT = `You are a precise nutrition estimator for a calorie/macro tracking app.
 The user describes, in plain everyday language, what they ate or drank. Your job is to
@@ -30,22 +30,16 @@ Rules:
 - Be reasonable about restaurant/takeaway/branded items (McDonald's, Nando's, Pret, etc.).
 - If the text contains no actual food or drink, return an empty items array.
 
-Respond with ONLY a JSON object, no prose, no code fences, in exactly this shape:
+Respond with ONLY a JSON object in exactly this shape:
 {"items":[{"name":"Chicken caesar wrap","quantity":"1 wrap","calories":430,"protein":28,"carbs":38,"fat":18}]}`;
 
-/** True for models that reject the output_config.effort parameter (Haiku). */
-function supportsEffort(model: string): boolean {
-  return !model.startsWith("claude-haiku");
-}
-
-interface AnthropicTextBlock {
-  type: string;
+interface GeminiPart {
   text?: string;
 }
-interface AnthropicResponse {
-  content?: AnthropicTextBlock[];
-  stop_reason?: string;
-  error?: { type?: string; message?: string };
+interface GeminiResponse {
+  candidates?: { content?: { parts?: GeminiPart[] }; finishReason?: string }[];
+  promptFeedback?: { blockReason?: string };
+  error?: { code?: number; message?: string; status?: string };
 }
 
 /** Pull the first JSON object out of a model response, tolerating stray prose/fences. */
@@ -105,7 +99,7 @@ function num(v: unknown): number {
 export class AIError extends Error {}
 
 /**
- * Ask Claude to turn a natural-language meal description into food items.
+ * Ask Gemini to turn a natural-language meal description into food items.
  * Throws an AIError with a friendly message on failure.
  */
 export async function parseFoodWithAI(
@@ -113,58 +107,57 @@ export async function parseFoodWithAI(
   model: string,
   apiKey: string
 ): Promise<AIFood[]> {
-  if (!apiKey) throw new AIError("Add your Claude API key in Settings first.");
+  if (!apiKey) throw new AIError("Add your free Google API key in Settings first.");
 
-  const body: Record<string, unknown> = {
-    model,
-    max_tokens: 1024,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: text }],
+  const url = `${BASE}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const body = {
+    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents: [{ role: "user", parts: [{ text }] }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      temperature: 0.2,
+      maxOutputTokens: 1024,
+    },
   };
-  if (supportsEffort(model)) {
-    body.output_config = { effort: "low" };
-  }
 
   let res: Response;
   try {
-    res = await fetch(ENDPOINT, {
+    res = await fetch(url, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
+      headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
     });
   } catch {
-    throw new AIError("Couldn't reach Claude — check your internet connection.");
+    throw new AIError("Couldn't reach the AI — check your internet connection.");
   }
 
   if (!res.ok) {
     let detail = "";
     try {
-      const err = (await res.json()) as AnthropicResponse;
+      const err = (await res.json()) as GeminiResponse;
       detail = err.error?.message || "";
     } catch {
       /* ignore */
     }
-    if (res.status === 401)
-      throw new AIError("Your Claude API key was rejected. Check it in Settings.");
+    if (res.status === 400 && /api.?key/i.test(detail))
+      throw new AIError("Your Google API key was rejected. Check it in Settings.");
+    if (res.status === 400)
+      throw new AIError(detail || "The AI rejected that request.");
+    if (res.status === 403)
+      throw new AIError("That key can't access this model. Check it in Settings.");
+    if (res.status === 404)
+      throw new AIError("That AI model isn't available — pick a different one in Settings.");
     if (res.status === 429)
-      throw new AIError("Claude is rate-limited or out of credit. Try again shortly.");
-    if (res.status === 400 && /credit balance/i.test(detail))
-      throw new AIError("Your Anthropic account is out of credit.");
-    throw new AIError(detail || `Claude request failed (${res.status}).`);
+      throw new AIError("Free AI limit reached for now — try again in a minute.");
+    throw new AIError(detail || `AI request failed (${res.status}).`);
   }
 
-  const data = (await res.json()) as AnthropicResponse;
-  if (data.stop_reason === "refusal")
-    throw new AIError("Claude couldn't process that description. Try rewording it.");
+  const data = (await res.json()) as GeminiResponse;
+  if (data.promptFeedback?.blockReason)
+    throw new AIError("The AI blocked that description. Try rewording it.");
 
-  const raw = (data.content ?? [])
-    .filter((b) => b.type === "text" && typeof b.text === "string")
-    .map((b) => b.text as string)
+  const raw = (data.candidates?.[0]?.content?.parts ?? [])
+    .map((p) => p.text ?? "")
     .join("\n");
 
   return extractFoods(raw);

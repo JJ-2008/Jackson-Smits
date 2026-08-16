@@ -51,7 +51,7 @@ export function SettingsModal({
   const toggleAi = () => {
     const key = aiKey.trim();
     if (!ai.enabled && !key) {
-      onToast("Paste your Claude API key first.");
+      onToast("Paste your free Google key first.");
       return;
     }
     onSaveAi({ apiKey: key, model: aiModel, enabled: !ai.enabled });
@@ -60,7 +60,7 @@ export function SettingsModal({
 
   const saveAiKey = () => {
     onSaveAi({ apiKey: aiKey.trim(), model: aiModel, enabled: ai.enabled });
-    onToast(aiKey.trim() ? "Claude key saved" : "Claude key cleared");
+    onToast(aiKey.trim() ? "AI key saved" : "AI key cleared");
   };
 
   const onPickBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -261,12 +261,12 @@ export function SettingsModal({
           <div className="toggle-row">
             <div>
               <div className="ss-title" style={{ marginBottom: 2 }}>
-                Smart AI logging ✨
+                Smart AI logging ✨ <span className="ai-free">free</span>
               </div>
               <div className="toggle-sub">
-                Describe meals in plain words and let Claude work out the items and
-                macros. Uses your own Anthropic API key — it stays on this device
-                and is never included in backups.
+                Describe meals in plain words and let AI work out the items and
+                macros. Uses a free Google Gemini key — no card and no ABN needed.
+                It stays on this device and is never included in backups.
               </div>
             </div>
             <button
@@ -279,12 +279,12 @@ export function SettingsModal({
           </div>
 
           <div className="field" style={{ marginTop: 12 }}>
-            <label>Anthropic API key</label>
+            <label>Google API key</label>
             <div className="row">
               <input
                 type={showKey ? "text" : "password"}
                 value={aiKey}
-                placeholder="sk-ant-…"
+                placeholder="AIza…"
                 autoComplete="off"
                 autoCorrect="off"
                 autoCapitalize="off"
@@ -316,8 +316,8 @@ export function SettingsModal({
             Save key &amp; model
           </button>
           <div className="toggle-sub" style={{ marginTop: 8 }}>
-            Get a key at console.anthropic.com → API Keys. You only pay Anthropic
-            for what you use (fractions of a penny per meal on Haiku).
+            Get a free key at <b>aistudio.google.com/app/apikey</b> → “Create API
+            key”. Just needs a Google account — no card, no charge, no ABN.
           </div>
         </div>
 

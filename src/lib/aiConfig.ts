@@ -1,6 +1,9 @@
 /**
- * AI (Claude) configuration, stored separately from the main app state so the
- * API key is NEVER included in exported backups.
+ * AI configuration, stored separately from the main app state so the API key
+ * is NEVER included in exported backups.
+ *
+ * Uses Google Gemini, which has a genuinely free tier — no credit card, no
+ * business/ABN, no charge. Users get a free key from Google AI Studio.
  */
 export interface AIConfig {
   apiKey: string;
@@ -9,26 +12,33 @@ export interface AIConfig {
 }
 
 export const AI_MODELS: { id: string; label: string; note: string }[] = [
-  { id: "claude-opus-5", label: "Claude Opus 5", note: "Smartest — best understanding" },
-  { id: "claude-sonnet-5", label: "Claude Sonnet 5", note: "Balanced speed and smarts" },
-  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", note: "Cheapest & fastest — great for daily logging" },
+  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", note: "Smartest free — best understanding" },
+  { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite", note: "Fastest & lightest" },
+  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", note: "Reliable fallback" },
 ];
 
+const DEFAULT_MODEL = "gemini-2.5-flash";
 const KEY = "cutting-tracker:ai";
 
+/** Old builds stored a Claude model id here — fall back to a valid Gemini one. */
+function normaliseModel(m: unknown): string {
+  return typeof m === "string" && m.startsWith("gemini") ? m : DEFAULT_MODEL;
+}
+
 export function loadAIConfig(): AIConfig {
-  if (typeof localStorage === "undefined") return { apiKey: "", model: "claude-opus-5", enabled: false };
+  if (typeof localStorage === "undefined")
+    return { apiKey: "", model: DEFAULT_MODEL, enabled: false };
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { apiKey: "", model: "claude-opus-5", enabled: false };
+    if (!raw) return { apiKey: "", model: DEFAULT_MODEL, enabled: false };
     const p = JSON.parse(raw) as Partial<AIConfig>;
     return {
       apiKey: p.apiKey ?? "",
-      model: p.model ?? "claude-opus-5",
+      model: normaliseModel(p.model),
       enabled: p.enabled ?? false,
     };
   } catch {
-    return { apiKey: "", model: "claude-opus-5", enabled: false };
+    return { apiKey: "", model: DEFAULT_MODEL, enabled: false };
   }
 }
 
