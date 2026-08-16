@@ -71,7 +71,7 @@ export function SettingsModal({
       setModels(found);
       const nextModel = found.some((m) => m.id === aiModel) ? aiModel : found[0].id;
       if (nextModel !== aiModel) setAiModel(nextModel);
-      onSaveAi({ apiKey: key, model: nextModel, enabled: ai.enabled });
+      onSaveAi({ ...ai, apiKey: key, model: nextModel });
       if (!silent) onToast(`Found ${found.length} model${found.length > 1 ? "s" : ""} ✓`);
     } catch (e) {
       onToast(e instanceof AIError ? e.message : "Couldn't check models.");
@@ -95,13 +95,13 @@ export function SettingsModal({
       onToast("Paste your free Google key first.");
       return;
     }
-    onSaveAi({ apiKey: key, model: aiModel, enabled: !ai.enabled });
+    onSaveAi({ ...ai, apiKey: key, model: aiModel, enabled: !ai.enabled });
     onToast(!ai.enabled ? "Smart AI logging on ✨" : "AI logging off");
   };
 
   const saveAiKey = async () => {
     const key = aiKey.trim();
-    onSaveAi({ apiKey: key, model: aiModel, enabled: ai.enabled });
+    onSaveAi({ ...ai, apiKey: key, model: aiModel });
     if (key) {
       await detectModels();
     } else {
@@ -374,6 +374,26 @@ export function SettingsModal({
           <div className="toggle-sub" style={{ marginTop: 8 }}>
             Get a free key at <b>aistudio.google.com/app/apikey</b> → “Create API
             key”. Just needs a Google account — no card, no charge, no ABN.
+          </div>
+
+          <div className="toggle-row" style={{ marginTop: 14 }}>
+            <div>
+              <div className="ss-title" style={{ marginBottom: 2 }}>
+                Save my free limit
+              </div>
+              <div className="toggle-sub">
+                Only use AI for foods the app doesn't already recognise. Known
+                foods log instantly and free, so your daily allowance lasts far
+                longer. Turn off to run everything through AI.
+              </div>
+            </div>
+            <button
+              className={`switch${ai.saveQuota ? " on" : ""}`}
+              onClick={() => onSaveAi({ ...ai, saveQuota: !ai.saveQuota })}
+              aria-label="Toggle saving the free AI limit"
+            >
+              <span />
+            </button>
           </div>
         </div>
 

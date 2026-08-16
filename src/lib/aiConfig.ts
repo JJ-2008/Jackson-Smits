@@ -9,6 +9,7 @@ export interface AIConfig {
   apiKey: string;
   model: string;
   enabled: boolean;
+  saveQuota: boolean; // only call AI for foods the built-in database can't handle
 }
 
 export const AI_MODELS: { id: string; label: string; note?: string }[] = [
@@ -26,19 +27,20 @@ function normaliseModel(m: unknown): string {
 }
 
 export function loadAIConfig(): AIConfig {
-  if (typeof localStorage === "undefined")
-    return { apiKey: "", model: DEFAULT_MODEL, enabled: false };
+  const fallback: AIConfig = { apiKey: "", model: DEFAULT_MODEL, enabled: false, saveQuota: true };
+  if (typeof localStorage === "undefined") return fallback;
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return { apiKey: "", model: DEFAULT_MODEL, enabled: false };
+    if (!raw) return fallback;
     const p = JSON.parse(raw) as Partial<AIConfig>;
     return {
       apiKey: p.apiKey ?? "",
       model: normaliseModel(p.model),
       enabled: p.enabled ?? false,
+      saveQuota: p.saveQuota ?? true,
     };
   } catch {
-    return { apiKey: "", model: DEFAULT_MODEL, enabled: false };
+    return fallback;
   }
 }
 

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useStore, guessMeal } from "./hooks/useStore";
+import { parseMeal } from "./lib/parser";
 import { dayTotals } from "./lib/nutrition";
 import { totalBurn, hadStrength, exerciseAdjustedTargets } from "./lib/exercise";
 import { addDays, formatLongDate, isToday } from "./lib/date";
@@ -124,9 +125,21 @@ export default function App() {
     }
   };
 
-  // While the free AI limit is cooling down, log with the built-in parser.
-  const handleSmartAdd = (text: string, meal: (typeof foods)[number]["meal"]) =>
-    (Date.now() >= cooldown.until ? handleAddAI : handleAdd)(text, meal);
+  // True when the built-in database already recognises everything in the text,
+  // so we can log it instantly for free without spending an AI request.
+  const builtInHandlesAll = (text: string) => {
+    const parsed = parseMeal(text);
+    return parsed.length > 0 && parsed.every((p) => p.matched);
+  };
+
+  // Decide per-submit whether to spend an AI request. We skip AI while it's
+  // cooling down, and (when "save my free limit" is on) for foods the built-in
+  // database already knows — so the quota only goes on genuinely tricky ones.
+  const handleSmartAdd = (text: string, meal: (typeof foods)[number]["meal"]) => {
+    if (Date.now() < cooldown.until) return handleAdd(text, meal);
+    if (ai.saveQuota && builtInHandlesAll(text)) return handleAdd(text, meal);
+    return handleAddAI(text, meal);
+  };
 
   const sameAsYesterday = () => {
     const n = store.copyPreviousDay(viewDate);
