@@ -135,6 +135,41 @@ export function useStore() {
     [ensureDay, resolveOnline]
   );
 
+  /** Add pre-estimated foods (e.g. from the Claude AI parser) to a day. */
+  const addEstimatedFoods = useCallback(
+    (
+      date: string,
+      foods: { name: string; quantity: string; macros: Macros }[],
+      meal: MealType
+    ): number => {
+      if (!foods.length) return 0;
+      const now = Date.now();
+      const entries: FoodEntry[] = foods.map((f, i) => ({
+        id: genId(),
+        name: f.name,
+        quantity: f.quantity,
+        meal,
+        estimated: true,
+        createdAt: now + i,
+        calories: Math.round(f.macros.calories),
+        protein: Math.round(f.macros.protein * 10) / 10,
+        carbs: Math.round(f.macros.carbs * 10) / 10,
+        fat: Math.round(f.macros.fat * 10) / 10,
+        junk: autoJunk(f.name),
+        source: "text",
+      }));
+      setState((s) => {
+        const day = ensureDay(s, date);
+        return {
+          ...s,
+          days: { ...s.days, [date]: { ...day, foods: [...day.foods, ...entries] } },
+        };
+      });
+      return entries.length;
+    },
+    [ensureDay]
+  );
+
   const updateFood = useCallback(
     (date: string, id: string, patch: Partial<FoodEntry>) => {
       setState((s) => {
@@ -394,6 +429,7 @@ export function useStore() {
       state,
       today,
       addFoodsFromText,
+      addEstimatedFoods,
       addBarcodeFood,
       addPhotoFood,
       toggleJunk,
@@ -413,6 +449,7 @@ export function useStore() {
       state,
       today,
       addFoodsFromText,
+      addEstimatedFoods,
       addBarcodeFood,
       addPhotoFood,
       toggleJunk,

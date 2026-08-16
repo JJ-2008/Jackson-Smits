@@ -3,9 +3,10 @@ import { MEAL_TYPES, type MealType } from "../types";
 
 interface Props {
   defaultMeal: MealType;
-  onAdd: (text: string, meal: MealType) => number;
+  onAdd: (text: string, meal: MealType) => number | Promise<number>;
   onScan: () => void;
   onPhoto: () => void;
+  aiEnabled?: boolean;
 }
 
 const PLACEHOLDERS = [
@@ -16,23 +17,41 @@ const PLACEHOLDERS = [
   "2 eggs, toast and avocado",
 ];
 
-export function FoodInput({ defaultMeal, onAdd, onScan, onPhoto }: Props) {
+const AI_PLACEHOLDERS = [
+  "a chicken caesar wrap and a flat white",
+  "medium Nando's with peri chips and a coke",
+  "two slices of pepperoni pizza and garlic bread",
+  "a bowl of porridge with honey, blueberries and a coffee",
+  "leftover katsu curry, about a plateful",
+];
+
+export function FoodInput({ defaultMeal, onAdd, onScan, onPhoto, aiEnabled }: Props) {
   const [text, setText] = useState("");
   const [meal, setMeal] = useState<MealType>(defaultMeal);
-  const [placeholder] = useState(
-    () => PLACEHOLDERS[Math.floor(Math.random() * PLACEHOLDERS.length)]
-  );
+  const [busy, setBusy] = useState(false);
+  const [placeholder] = useState(() => {
+    const list = aiEnabled ? AI_PLACEHOLDERS : PLACEHOLDERS;
+    return list[Math.floor(Math.random() * list.length)];
+  });
 
-  const submit = () => {
+  const submit = async () => {
     const t = text.trim();
-    if (!t) return;
-    const n = onAdd(t, meal);
-    if (n > 0) setText("");
+    if (!t || busy) return;
+    setBusy(true);
+    try {
+      const n = await onAdd(t, meal);
+      if (n > 0) setText("");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
     <div className="card food-input">
-      <label htmlFor="food-field">What did you eat?</label>
+      <label htmlFor="food-field">
+        What did you eat?
+        {aiEnabled && <span className="ai-chip">✨ AI</span>}
+      </label>
       <div className="row">
         <textarea
           id="food-field"
@@ -46,9 +65,10 @@ export function FoodInput({ defaultMeal, onAdd, onScan, onPhoto }: Props) {
             }
           }}
           rows={1}
+          disabled={busy}
         />
-        <button className="add-btn" onClick={submit} disabled={!text.trim()}>
-          Add
+        <button className="add-btn" onClick={submit} disabled={!text.trim() || busy}>
+          {busy ? <span className="spinner" aria-label="Thinking" /> : "Add"}
         </button>
       </div>
       <div className="meal-tabs">
@@ -71,8 +91,17 @@ export function FoodInput({ defaultMeal, onAdd, onScan, onPhoto }: Props) {
         </button>
       </div>
       <p className="hint">
-        Type naturally — e.g. <code>200g chicken breast and 250g cooked rice</code>.
-        Estimates are auto-calculated and fully editable.
+        {aiEnabled ? (
+          <>
+            Describe your meal like you'd say it out loud — Claude works out the
+            items and macros. Everything stays editable.
+          </>
+        ) : (
+          <>
+            Type naturally — e.g. <code>200g chicken breast and 250g cooked rice</code>.
+            Estimates are auto-calculated and fully editable.
+          </>
+        )}
       </p>
     </div>
   );

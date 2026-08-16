@@ -8,9 +8,12 @@ import {
   DEFAULT_PROFILE,
 } from "../lib/goals";
 import { parseBackup, readFileText } from "../lib/backup";
+import { AI_MODELS, type AIConfig } from "../lib/aiConfig";
 
 interface Props {
   settings: Settings;
+  ai: AIConfig;
+  onSaveAi: (cfg: AIConfig) => void;
   onApplyProfile: (p: Profile) => void;
   onSetTargets: (t: Targets) => void;
   onSetSettings: (patch: Partial<Settings>) => void;
@@ -27,6 +30,8 @@ const num = (s: string, fb: number) => {
 
 export function SettingsModal({
   settings,
+  ai,
+  onSaveAi,
   onApplyProfile,
   onSetTargets,
   onSetSettings,
@@ -36,6 +41,27 @@ export function SettingsModal({
   onClose,
 }: Props) {
   const importRef = useRef<HTMLInputElement>(null);
+
+  // AI (bring-your-own-key) local editing state.
+  const [aiKey, setAiKey] = useState(ai.apiKey);
+  const [aiModel, setAiModel] = useState(ai.model);
+  const [showKey, setShowKey] = useState(false);
+  const aiEnabled = ai.enabled && ai.apiKey.trim().length > 0;
+
+  const toggleAi = () => {
+    const key = aiKey.trim();
+    if (!ai.enabled && !key) {
+      onToast("Paste your Claude API key first.");
+      return;
+    }
+    onSaveAi({ apiKey: key, model: aiModel, enabled: !ai.enabled });
+    onToast(!ai.enabled ? "Smart AI logging on ✨" : "AI logging off");
+  };
+
+  const saveAiKey = () => {
+    onSaveAi({ apiKey: aiKey.trim(), model: aiModel, enabled: ai.enabled });
+    onToast(aiKey.trim() ? "Claude key saved" : "Claude key cleared");
+  };
 
   const onPickBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -228,6 +254,70 @@ export function SettingsModal({
             >
               <span />
             </button>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <div className="toggle-row">
+            <div>
+              <div className="ss-title" style={{ marginBottom: 2 }}>
+                Smart AI logging ✨
+              </div>
+              <div className="toggle-sub">
+                Describe meals in plain words and let Claude work out the items and
+                macros. Uses your own Anthropic API key — it stays on this device
+                and is never included in backups.
+              </div>
+            </div>
+            <button
+              className={`switch${aiEnabled ? " on" : ""}`}
+              onClick={toggleAi}
+              aria-label="Toggle smart AI logging"
+            >
+              <span />
+            </button>
+          </div>
+
+          <div className="field" style={{ marginTop: 12 }}>
+            <label>Anthropic API key</label>
+            <div className="row">
+              <input
+                type={showKey ? "text" : "password"}
+                value={aiKey}
+                placeholder="sk-ant-…"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                onChange={(e) => setAiKey(e.target.value)}
+              />
+              <button
+                className="btn btn-ghost"
+                style={{ flex: "0 0 auto" }}
+                onClick={() => setShowKey((v) => !v)}
+              >
+                {showKey ? "Hide" : "Show"}
+              </button>
+            </div>
+          </div>
+
+          <div className="field">
+            <label>Model</label>
+            <select value={aiModel} onChange={(e) => setAiModel(e.target.value)}>
+              {AI_MODELS.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label} — {m.note}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button className="btn btn-primary" style={{ width: "100%" }} onClick={saveAiKey}>
+            Save key &amp; model
+          </button>
+          <div className="toggle-sub" style={{ marginTop: 8 }}>
+            Get a key at console.anthropic.com → API Keys. You only pay Anthropic
+            for what you use (fractions of a penny per meal on Haiku).
           </div>
         </div>
 

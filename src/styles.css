@@ -356,6 +356,27 @@ textarea {
   filter: grayscale(0.6) brightness(0.8);
   box-shadow: none;
 }
+.add-btn .spinner {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  border-color: rgba(0, 0, 0, 0.25);
+  border-top-color: var(--on-accent);
+  display: inline-block;
+  vertical-align: middle;
+}
+.ai-chip {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--on-accent);
+  background: linear-gradient(180deg, #bef264, #a3e635);
+  vertical-align: middle;
+}
 .meal-tabs {
   display: flex;
   gap: 6px;

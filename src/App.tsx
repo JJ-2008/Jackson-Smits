@@ -4,6 +4,8 @@ import { dayTotals } from "./lib/nutrition";
 import { totalBurn, hadStrength, exerciseAdjustedTargets } from "./lib/exercise";
 import { addDays, formatLongDate, isToday } from "./lib/date";
 import { exportBackup } from "./lib/backup";
+import { loadAIConfig, saveAIConfig, type AIConfig } from "./lib/aiConfig";
+import { parseFoodWithAI, AIError } from "./lib/aiParser";
 import type { FoodEntry } from "./types";
 
 import { SplashScreen } from "./components/SplashScreen";
@@ -47,6 +49,13 @@ export default function App() {
   const [showPhoto, setShowPhoto] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [ai, setAi] = useState<AIConfig>(() => loadAIConfig());
+
+  const saveAi = (cfg: AIConfig) => {
+    setAi(cfg);
+    saveAIConfig(cfg);
+  };
+  const aiActive = ai.enabled && ai.apiKey.trim().length > 0;
 
   useEffect(() => {
     if (!toast) return;
@@ -73,6 +82,31 @@ export default function App() {
     const n = store.addFoodsFromText(viewDate, text, meal);
     setToast(n > 0 ? `Added ${n} item${n > 1 ? "s" : ""}` : "Couldn't parse that — try again");
     return n;
+  };
+
+  // When Claude AI is on, route the description through it; fall back to the
+  // built-in parser if the request fails so the user always gets an estimate.
+  const handleAddAI = async (text: string, meal: (typeof foods)[number]["meal"]) => {
+    try {
+      const foundFoods = await parseFoodWithAI(text, ai.model, ai.apiKey);
+      if (foundFoods.length) {
+        const n = store.addEstimatedFoods(
+          viewDate,
+          foundFoods.map((f) => ({ name: f.name, quantity: f.quantity, macros: f })),
+          meal
+        );
+        setToast(`Added ${n} item${n > 1 ? "s" : ""}`);
+        return n;
+      }
+      const n = store.addFoodsFromText(viewDate, text, meal);
+      setToast(n > 0 ? `Added ${n} item${n > 1 ? "s" : ""}` : "No food found in that");
+      return n;
+    } catch (e) {
+      const msg = e instanceof AIError ? e.message : "AI couldn't handle that.";
+      const n = store.addFoodsFromText(viewDate, text, meal);
+      setToast(n > 0 ? `${msg} Used the built-in estimate instead.` : msg);
+      return n;
+    }
   };
 
   const sameAsYesterday = () => {
@@ -144,9 +178,10 @@ export default function App() {
 
           <FoodInput
             defaultMeal={guessMeal()}
-            onAdd={handleAdd}
+            onAdd={aiActive ? handleAddAI : handleAdd}
             onScan={() => setShowScanner(true)}
             onPhoto={() => setShowPhoto(true)}
+            aiEnabled={aiActive}
           />
 
           <QuickActions
@@ -204,6 +239,8 @@ export default function App() {
       {showSettings && (
         <SettingsModal
           settings={state.settings}
+          ai={ai}
+          onSaveAi={saveAi}
           onApplyProfile={store.applyProfile}
           onSetTargets={store.setTargets}
           onSetSettings={store.setSettings}
