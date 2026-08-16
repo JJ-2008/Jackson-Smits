@@ -47,6 +47,28 @@ describe("AI parser response extraction", () => {
     expect(foods[0].protein).toBe(0);
   });
 
+  it("fixes calories that disagree with the macros (e.g. inflated lamb)", () => {
+    const foods = extractFoods(
+      '{"items":[{"name":"Lamb shoulder","quantity":"300 g","calories":1100,"protein":72,"carbs":0,"fat":63}]}'
+    );
+    // 72*4 + 63*9 = 855, so the 1100 should be pulled back to the macro total.
+    expect(foods[0].calories).toBe(855);
+  });
+
+  it("keeps calories that already match the macros", () => {
+    const foods = extractFoods(
+      '{"items":[{"name":"Egg yolk","quantity":"1 yolk","calories":55,"protein":2.7,"carbs":0.6,"fat":4.5}]}'
+    );
+    expect(foods[0].calories).toBe(55);
+  });
+
+  it("leaves zero-macro drinks alone", () => {
+    const foods = extractFoods(
+      '{"items":[{"name":"Black coffee","quantity":"1 cup","calories":2,"protein":0,"carbs":0,"fat":0}]}'
+    );
+    expect(foods[0].calories).toBe(2);
+  });
+
   it("drops items without a name and returns [] for empty/garbage input", () => {
     expect(extractFoods('{"items":[{"quantity":"1"}]}')).toHaveLength(0);
     expect(extractFoods("")).toHaveLength(0);

@@ -16,19 +16,28 @@ export interface AIFood extends Macros {
 const BASE = "https://generativelanguage.googleapis.com/v1beta/models";
 
 const SYSTEM_PROMPT = `You are a precise nutrition estimator for a calorie/macro tracking app.
-The user describes, in plain everyday language, what they ate or drank. Your job is to
-turn that description into a list of individual food/drink items with realistic macro
-estimates, the way a knowledgeable dietitian would.
+Turn the user's plain-language description of what they ate or drank into a list of
+individual items with realistic macros, the way a knowledgeable dietitian would.
 
-Rules:
-- Split a description into separate items (e.g. "a chicken caesar wrap and a latte" = 2 items).
-- Estimate a sensible real-world portion when none is given (a typical serving), and honour
-  any amount the user states (grams, cups, slices, "large", "two", etc.).
-- "quantity" is a short human-readable amount, e.g. "200 g", "1 wrap", "330 ml", "2 slices".
-- calories in kcal; protein, carbs, fat in grams. Keep calories roughly consistent with
-  4/4/9 kcal per gram of protein/carbs/fat.
-- Be reasonable about restaurant/takeaway/branded items (McDonald's, Nando's, Pret, etc.).
-- If the text contains no actual food or drink, return an empty items array.
+Core rules:
+- Log EXACTLY what is described. Honour specific parts and states, don't round up to
+  the whole food: "egg yolk" is NOT a whole egg, "egg white" is NOT a whole egg,
+  "chicken breast" is not thigh, and respect "skinless", "lean", "no dressing", and
+  raw vs cooked/fried/grilled/roasted.
+- Split a description into separate items ("a wrap and a latte" = 2 items).
+- Use the amount the user states (grams, ml, slices, "two", "large"); otherwise
+  estimate a normal real-world serving.
+- "quantity" is short and human, e.g. "1 yolk", "200 g", "330 ml", "2 slices".
+- Calories in kcal; protein/carbs/fat in grams. Numbers MUST be self-consistent:
+  calories must equal about protein*4 + carbs*4 + fat*9.
+- Keep estimates realistic, not inflated. Anchor meats to these cooked per-100g values:
+  lamb shoulder ~290 kcal (24P/21F), chicken breast ~165 (31P/3.6F),
+  beef mince ~250 (26P/15F), salmon ~200 (25P/12F), pork ~240 (27P/14F).
+- If the text contains no real food or drink, return an empty items array.
+
+Examples:
+- "one raw egg yolk" -> {"items":[{"name":"Egg yolk","quantity":"1 yolk","calories":55,"protein":2.7,"carbs":0.6,"fat":4.5}]}
+- "300g lamb shoulder" -> {"items":[{"name":"Lamb shoulder","quantity":"300 g","calories":870,"protein":72,"carbs":0,"fat":63}]}
 
 Respond with ONLY a JSON object in exactly this shape:
 {"items":[{"name":"Chicken caesar wrap","quantity":"1 wrap","calories":430,"protein":28,"carbs":38,"fat":18}]}`;
@@ -76,16 +85,19 @@ export function extractFoods(raw: string): AIFood[] {
     const o = it as Record<string, unknown>;
     const name = typeof o.name === "string" ? o.name.trim() : "";
     if (!name) continue;
+    const protein = num(o.protein);
+    const carbs = num(o.carbs);
+    const fat = num(o.fat);
     foods.push({
       name,
       quantity:
         typeof o.quantity === "string" && o.quantity.trim()
           ? o.quantity.trim()
           : "1 serving",
-      calories: num(o.calories),
-      protein: num(o.protein),
-      carbs: num(o.carbs),
-      fat: num(o.fat),
+      calories: reconcileCalories(num(o.calories), protein, carbs, fat),
+      protein,
+      carbs,
+      fat,
     });
   }
   return foods;
@@ -94,6 +106,21 @@ export function extractFoods(raw: string): AIFood[] {
 function num(v: unknown): number {
   const n = typeof v === "number" ? v : parseFloat(String(v));
   return Number.isFinite(n) && n >= 0 ? Math.round(n * 10) / 10 : 0;
+}
+
+/**
+ * Keep the calorie figure consistent with the macros. If the model's calories
+ * disagree with protein*4 + carbs*4 + fat*9 by more than ~12%, trust the macros
+ * (fixes cases like "300g lamb = 1100 kcal" when the macros only sum to ~855).
+ * Drinks with no macros keep whatever calories were given.
+ */
+function reconcileCalories(calories: number, protein: number, carbs: number, fat: number): number {
+  const derived = protein * 4 + carbs * 4 + fat * 9;
+  if (derived <= 0) return calories;
+  if (calories <= 0 || Math.abs(calories - derived) / derived > 0.12) {
+    return Math.round(derived);
+  }
+  return calories;
 }
 
 export class AIError extends Error {}
