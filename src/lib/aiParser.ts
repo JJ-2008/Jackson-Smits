@@ -125,6 +125,61 @@ function reconcileCalories(calories: number, protein: number, carbs: number, fat
 
 export class AIError extends Error {}
 
+export interface AIModelInfo {
+  id: string;
+  label: string;
+}
+
+/**
+ * Ask Google which models this key can actually use for generateContent.
+ * Model availability varies by key/region and changes over time, so detecting
+ * beats hard-coding names. Returns free/fast Gemini text models, flash first.
+ */
+export async function listChatModels(apiKey: string): Promise<AIModelInfo[]> {
+  if (!apiKey) throw new AIError("Add your free Google API key first.");
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}?key=${encodeURIComponent(apiKey)}&pageSize=200`, {
+      method: "GET",
+    });
+  } catch {
+    throw new AIError("Couldn't reach Google — check your internet connection.");
+  }
+
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const err = (await res.json()) as GeminiResponse;
+      detail = err.error?.message || "";
+    } catch {
+      /* ignore */
+    }
+    if (res.status === 400 || res.status === 403)
+      throw new AIError("That API key was rejected. Double-check it and try again.");
+    throw new AIError(detail || `Couldn't load models (${res.status}).`);
+  }
+
+  const data = (await res.json()) as {
+    models?: { name?: string; displayName?: string; supportedGenerationMethods?: string[] }[];
+  };
+
+  const out: AIModelInfo[] = [];
+  for (const m of data.models ?? []) {
+    const id = (m.name ?? "").replace(/^models\//, "");
+    if (!id.startsWith("gemini")) continue;
+    if (!(m.supportedGenerationMethods ?? []).includes("generateContent")) continue;
+    // Skip non–text-chat variants.
+    if (/embedding|aqa|image|imagen|vision|tts|audio|live/i.test(id)) continue;
+    out.push({ id, label: m.displayName || id });
+  }
+
+  const rank = (id: string) =>
+    id.includes("flash-lite") ? 0 : id.includes("flash") ? 1 : id.includes("pro") ? 2 : 3;
+  out.sort((a, b) => rank(a.id) - rank(b.id));
+  return out;
+}
+
 /**
  * Ask Gemini to turn a natural-language meal description into food items.
  * Throws an AIError with a friendly message on failure.

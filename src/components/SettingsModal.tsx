@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Activity, AppState, GoalType, Profile, Settings, Targets } from "../types";
 import {
   ACTIVITY_LABEL,
@@ -9,6 +9,9 @@ import {
 } from "../lib/goals";
 import { parseBackup, readFileText } from "../lib/backup";
 import { AI_MODELS, type AIConfig } from "../lib/aiConfig";
+import { listChatModels, AIError } from "../lib/aiParser";
+
+type ModelOption = { id: string; label: string; note?: string };
 
 interface Props {
   settings: Settings;
@@ -46,7 +49,45 @@ export function SettingsModal({
   const [aiKey, setAiKey] = useState(ai.apiKey);
   const [aiModel, setAiModel] = useState(ai.model);
   const [showKey, setShowKey] = useState(false);
+  const [models, setModels] = useState<ModelOption[]>(AI_MODELS);
+  const [detecting, setDetecting] = useState(false);
   const aiEnabled = ai.enabled && ai.apiKey.trim().length > 0;
+
+  // Ask the key which models it can actually use, and fix the selection if the
+  // saved one isn't in the list (this is what clears "model isn't available").
+  const detectModels = async (silent = false) => {
+    const key = aiKey.trim();
+    if (!key) {
+      if (!silent) onToast("Paste your key first.");
+      return;
+    }
+    setDetecting(true);
+    try {
+      const found = await listChatModels(key);
+      if (!found.length) {
+        if (!silent) onToast("No usable models for that key.");
+        return;
+      }
+      setModels(found);
+      const nextModel = found.some((m) => m.id === aiModel) ? aiModel : found[0].id;
+      if (nextModel !== aiModel) setAiModel(nextModel);
+      onSaveAi({ apiKey: key, model: nextModel, enabled: ai.enabled });
+      if (!silent) onToast(`Found ${found.length} model${found.length > 1 ? "s" : ""} ✓`);
+    } catch (e) {
+      onToast(e instanceof AIError ? e.message : "Couldn't check models.");
+    } finally {
+      setDetecting(false);
+    }
+  };
+
+  // On open, if a key is already saved, quietly refresh the usable model list.
+  const didAutoDetect = useRef(false);
+  useEffect(() => {
+    if (didAutoDetect.current) return;
+    didAutoDetect.current = true;
+    if (ai.apiKey.trim()) detectModels(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const toggleAi = () => {
     const key = aiKey.trim();
@@ -58,9 +99,14 @@ export function SettingsModal({
     onToast(!ai.enabled ? "Smart AI logging on ✨" : "AI logging off");
   };
 
-  const saveAiKey = () => {
-    onSaveAi({ apiKey: aiKey.trim(), model: aiModel, enabled: ai.enabled });
-    onToast(aiKey.trim() ? "AI key saved" : "AI key cleared");
+  const saveAiKey = async () => {
+    const key = aiKey.trim();
+    onSaveAi({ apiKey: key, model: aiModel, enabled: ai.enabled });
+    if (key) {
+      await detectModels();
+    } else {
+      onToast("AI key cleared");
+    }
   };
 
   const onPickBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -304,13 +350,23 @@ export function SettingsModal({
           <div className="field">
             <label>Model</label>
             <select value={aiModel} onChange={(e) => setAiModel(e.target.value)}>
-              {AI_MODELS.map((m) => (
+              {models.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.label} — {m.note}
+                  {m.label}
+                  {m.note ? ` — ${m.note}` : ""}
                 </option>
               ))}
             </select>
           </div>
+
+          <button
+            className="btn btn-ghost"
+            style={{ width: "100%", marginBottom: 8 }}
+            onClick={() => detectModels()}
+            disabled={detecting}
+          >
+            {detecting ? "Checking…" : "🔍 Check which models my key can use"}
+          </button>
 
           <button className="btn btn-primary" style={{ width: "100%" }} onClick={saveAiKey}>
             Save key &amp; model

@@ -11,13 +11,13 @@ export interface AIConfig {
   enabled: boolean;
 }
 
-export const AI_MODELS: { id: string; label: string; note: string }[] = [
-  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", note: "Smartest free — best understanding" },
+export const AI_MODELS: { id: string; label: string; note?: string }[] = [
+  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", note: "Reliable & free — recommended" },
+  { id: "gemini-2.5-flash", label: "Gemini 2.5 Flash", note: "Newer & smarter (if your key supports it)" },
   { id: "gemini-2.5-flash-lite", label: "Gemini 2.5 Flash-Lite", note: "Fastest & lightest" },
-  { id: "gemini-2.0-flash", label: "Gemini 2.0 Flash", note: "Reliable fallback" },
 ];
 
-const DEFAULT_MODEL = "gemini-2.5-flash";
+const DEFAULT_MODEL = "gemini-2.0-flash";
 const KEY = "cutting-tracker:ai";
 
 /** Old builds stored a Claude model id here — fall back to a valid Gemini one. */
