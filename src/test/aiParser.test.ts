@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { extractFoods, parseRetrySeconds } from "../lib/aiParser";
+import {
+  extractFoods,
+  parseRetrySeconds,
+  isDailyQuota,
+  secondsUntilPacificMidnight,
+} from "../lib/aiParser";
 
 describe("AI parser response extraction", () => {
   it("parses a clean JSON object with an items array", () => {
@@ -97,5 +102,43 @@ describe("rate-limit retry timing", () => {
 
   it("falls back to 60 seconds when nothing is provided", () => {
     expect(parseRetrySeconds(new Response("", { status: 429 }), null)).toBe(60);
+  });
+
+  it("detects a daily quota from the violation metadata", () => {
+    expect(
+      isDailyQuota({
+        error: {
+          details: [
+            {
+              "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+              violations: [
+                { quotaId: "GenerateRequestsPerDayPerProjectPerModel-FreeTier" },
+              ],
+            },
+          ],
+        },
+      })
+    ).toBe(true);
+  });
+
+  it("treats a plain per-minute limit as not daily", () => {
+    expect(
+      isDailyQuota({
+        error: {
+          details: [
+            {
+              "@type": "type.googleapis.com/google.rpc.QuotaFailure",
+              violations: [{ quotaId: "GenerateRequestsPerMinutePerProjectPerModel" }],
+            },
+          ],
+        },
+      })
+    ).toBe(false);
+  });
+
+  it("counts a positive number of seconds until the Pacific daily reset", () => {
+    const s = secondsUntilPacificMidnight();
+    expect(s).toBeGreaterThan(0);
+    expect(s).toBeLessThanOrEqual(86400);
   });
 });

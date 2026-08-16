@@ -8,6 +8,7 @@ interface Props {
   onPhoto: () => void;
   aiEnabled?: boolean;
   cooldownUntil?: number; // epoch ms the free AI limit resets, 0 if not limited
+  cooldownDaily?: boolean; // true when it's the daily quota (long wait)
 }
 
 const PLACEHOLDERS = [
@@ -33,6 +34,7 @@ export function FoodInput({
   onPhoto,
   aiEnabled,
   cooldownUntil = 0,
+  cooldownDaily = false,
 }: Props) {
   const [text, setText] = useState("");
   const [meal, setMeal] = useState<MealType>(defaultMeal);
@@ -56,7 +58,14 @@ export function FoodInput({
 
   const cooling = cooldownUntil > now;
   const remain = cooling ? Math.ceil((cooldownUntil - now) / 1000) : 0;
-  const clock = `${Math.floor(remain / 60)}:${String(remain % 60).padStart(2, "0")}`;
+  // Short waits show m:ss; long (daily) waits show h m.
+  const clock =
+    remain >= 3600
+      ? `${Math.floor(remain / 3600)}h ${Math.floor((remain % 3600) / 60)}m`
+      : `${Math.floor(remain / 60)}:${String(remain % 60).padStart(2, "0")}`;
+  const resetAt = cooling
+    ? new Date(cooldownUntil).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : "";
 
   const submit = async () => {
     const t = text.trim();
@@ -75,7 +84,11 @@ export function FoodInput({
       <label htmlFor="food-field">
         What did you eat?
         {aiEnabled && !cooling && <span className="ai-chip">✨ AI</span>}
-        {cooling && <span className="ai-cooldown">⏳ Free AI back in {clock}</span>}
+        {cooling && (
+          <span className="ai-cooldown">
+            ⏳ {cooldownDaily ? `Daily limit · back ~${resetAt}` : `Free AI back in ${clock}`}
+          </span>
+        )}
       </label>
       <div className="row">
         <textarea
@@ -116,7 +129,13 @@ export function FoodInput({
         </button>
       </div>
       <p className="hint">
-        {cooling ? (
+        {cooling && cooldownDaily ? (
+          <>
+            Daily free AI limit reached — resets around <b>{resetAt}</b>. Logging
+            with the built-in estimator until then. Tip: switching the model in
+            Settings gives a separate daily allowance. Everything stays editable.
+          </>
+        ) : cooling ? (
           <>
             Free AI limit hit — resets in <b>{clock}</b>. Logging with the
             built-in estimator until then. Everything stays editable.

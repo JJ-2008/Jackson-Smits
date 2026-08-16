@@ -4,7 +4,13 @@ import { dayTotals } from "./lib/nutrition";
 import { totalBurn, hadStrength, exerciseAdjustedTargets } from "./lib/exercise";
 import { addDays, formatLongDate, isToday } from "./lib/date";
 import { exportBackup } from "./lib/backup";
-import { loadAIConfig, saveAIConfig, type AIConfig } from "./lib/aiConfig";
+import {
+  loadAIConfig,
+  saveAIConfig,
+  loadCooldown,
+  saveCooldown,
+  type AIConfig,
+} from "./lib/aiConfig";
 import { parseFoodWithAI, AIError, AIRateLimitError } from "./lib/aiParser";
 import type { FoodEntry } from "./types";
 
@@ -50,11 +56,16 @@ export default function App() {
   const [showSearch, setShowSearch] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [ai, setAi] = useState<AIConfig>(() => loadAIConfig());
-  const [aiCooldown, setAiCooldown] = useState(0); // epoch ms the free limit resets
+  const [cooldown, setCooldown] = useState(() => loadCooldown());
 
   const saveAi = (cfg: AIConfig) => {
     setAi(cfg);
     saveAIConfig(cfg);
+  };
+  const applyCooldown = (retryAfterSec: number, daily: boolean) => {
+    const cd = { until: Date.now() + retryAfterSec * 1000, daily };
+    setCooldown(cd);
+    saveCooldown(cd);
   };
   const aiActive = ai.enabled && ai.apiKey.trim().length > 0;
 
@@ -104,7 +115,7 @@ export default function App() {
       return n;
     } catch (e) {
       if (e instanceof AIRateLimitError) {
-        setAiCooldown(Date.now() + e.retryAfter * 1000);
+        applyCooldown(e.retryAfter, e.daily);
       }
       const msg = e instanceof AIError ? e.message : "AI couldn't handle that.";
       const n = store.addFoodsFromText(viewDate, text, meal);
@@ -115,7 +126,7 @@ export default function App() {
 
   // While the free AI limit is cooling down, log with the built-in parser.
   const handleSmartAdd = (text: string, meal: (typeof foods)[number]["meal"]) =>
-    (Date.now() >= aiCooldown ? handleAddAI : handleAdd)(text, meal);
+    (Date.now() >= cooldown.until ? handleAddAI : handleAdd)(text, meal);
 
   const sameAsYesterday = () => {
     const n = store.copyPreviousDay(viewDate);
@@ -190,7 +201,8 @@ export default function App() {
             onScan={() => setShowScanner(true)}
             onPhoto={() => setShowPhoto(true)}
             aiEnabled={aiActive}
-            cooldownUntil={aiActive ? aiCooldown : 0}
+            cooldownUntil={aiActive ? cooldown.until : 0}
+            cooldownDaily={cooldown.daily}
           />
 
           <QuickActions

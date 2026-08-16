@@ -50,3 +50,34 @@ export function saveAIConfig(cfg: AIConfig): void {
     /* ignore */
   }
 }
+
+/** A remembered rate-limit cooldown, so the timer survives app restarts. */
+export interface AICooldown {
+  until: number; // epoch ms the limit resets
+  daily: boolean; // true = daily quota (long wait), false = per-minute
+}
+
+const CD_KEY = "cutting-tracker:ai-cooldown";
+
+export function loadCooldown(): AICooldown {
+  if (typeof localStorage === "undefined") return { until: 0, daily: false };
+  try {
+    const raw = localStorage.getItem(CD_KEY);
+    if (!raw) return { until: 0, daily: false };
+    const p = JSON.parse(raw) as Partial<AICooldown>;
+    const until = typeof p.until === "number" ? p.until : 0;
+    // Ignore a cooldown that's already elapsed.
+    return until > Date.now() ? { until, daily: !!p.daily } : { until: 0, daily: false };
+  } catch {
+    return { until: 0, daily: false };
+  }
+}
+
+export function saveCooldown(cd: AICooldown): void {
+  if (typeof localStorage === "undefined") return;
+  try {
+    localStorage.setItem(CD_KEY, JSON.stringify(cd));
+  } catch {
+    /* ignore */
+  }
+}

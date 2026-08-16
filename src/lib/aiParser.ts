@@ -52,11 +52,15 @@ interface GeminiResponse {
     code?: number;
     message?: string;
     status?: string;
-    details?: { "@type"?: string; retryDelay?: string }[];
+    details?: {
+      "@type"?: string;
+      retryDelay?: string;
+      violations?: { quotaId?: string; quotaMetric?: string }[];
+    }[];
   };
 }
 
-/** How many seconds until the free limit resets, from a 429 response. */
+/** How many seconds until a per-minute free limit resets, from a 429 response. */
 export function parseRetrySeconds(res: Response, err: GeminiResponse | null): number {
   const header = res.headers.get("retry-after");
   if (header) {
@@ -73,6 +77,41 @@ export function parseRetrySeconds(res: Response, err: GeminiResponse | null): nu
     }
   }
   return 60; // sensible default: the per-minute free quota resets each minute
+}
+
+/** True when a 429 is the daily quota (vs the per-minute rate limit). */
+export function isDailyQuota(err: GeminiResponse | null): boolean {
+  for (const d of err?.error?.details ?? []) {
+    for (const v of d.violations ?? []) {
+      if (/per\s*day/i.test(`${v.quotaId ?? ""} ${v.quotaMetric ?? ""}`)) return true;
+    }
+  }
+  return /per day|daily/i.test(err?.error?.message ?? "");
+}
+
+/** Seconds until the Gemini free daily quota resets (midnight US Pacific). */
+export function secondsUntilPacificMidnight(now: Date = new Date()): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+  const get = (t: string) => parseInt(parts.find((p) => p.type === t)?.value ?? "0", 10);
+  let h = get("hour");
+  if (h >= 24) h -= 24; // some environments render midnight as 24
+  const elapsed = h * 3600 + get("minute") * 60 + get("second");
+  return Math.max(60, 86400 - elapsed);
+}
+
+/** Work out how long to wait after a 429, and whether it's the daily cap. */
+export function rateLimitInfo(
+  res: Response,
+  err: GeminiResponse | null
+): { retryAfter: number; daily: boolean } {
+  if (isDailyQuota(err)) return { retryAfter: secondsUntilPacificMidnight(), daily: true };
+  return { retryAfter: parseRetrySeconds(res, err), daily: false };
 }
 
 /** Pull the first JSON object out of a model response, tolerating stray prose/fences. */
@@ -152,9 +191,11 @@ export class AIError extends Error {}
 /** Thrown when the free tier is temporarily rate-limited. */
 export class AIRateLimitError extends AIError {
   retryAfter: number; // seconds until the limit resets
-  constructor(message: string, retryAfter: number) {
+  daily: boolean; // true = daily quota (long wait), false = per-minute
+  constructor(message: string, retryAfter: number, daily = false) {
     super(message);
     this.retryAfter = retryAfter;
+    this.daily = daily;
   }
 }
 
@@ -262,11 +303,16 @@ export async function parseFoodWithAI(
       throw new AIError("That key can't access this model. Check it in Settings.");
     if (res.status === 404)
       throw new AIError("That AI model isn't available — pick a different one in Settings.");
-    if (res.status === 429)
+    if (res.status === 429) {
+      const info = rateLimitInfo(res, err);
       throw new AIRateLimitError(
-        "Free AI limit reached — logging with the built-in estimator meanwhile.",
-        parseRetrySeconds(res, err)
+        info.daily
+          ? "Daily free AI limit reached — logging with the built-in estimator until it resets."
+          : "Free AI limit reached — logging with the built-in estimator meanwhile.",
+        info.retryAfter,
+        info.daily
       );
+    }
     throw new AIError(detail || `AI request failed (${res.status}).`);
   }
 
