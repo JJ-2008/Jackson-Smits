@@ -48,7 +48,31 @@ interface GeminiPart {
 interface GeminiResponse {
   candidates?: { content?: { parts?: GeminiPart[] }; finishReason?: string }[];
   promptFeedback?: { blockReason?: string };
-  error?: { code?: number; message?: string; status?: string };
+  error?: {
+    code?: number;
+    message?: string;
+    status?: string;
+    details?: { "@type"?: string; retryDelay?: string }[];
+  };
+}
+
+/** How many seconds until the free limit resets, from a 429 response. */
+export function parseRetrySeconds(res: Response, err: GeminiResponse | null): number {
+  const header = res.headers.get("retry-after");
+  if (header) {
+    const s = parseInt(header, 10);
+    if (Number.isFinite(s) && s > 0) return s;
+  }
+  for (const d of err?.error?.details ?? []) {
+    if (typeof d.retryDelay === "string") {
+      const m = d.retryDelay.match(/([\d.]+)/);
+      if (m) {
+        const s = Math.ceil(parseFloat(m[1]));
+        if (s > 0) return s;
+      }
+    }
+  }
+  return 60; // sensible default: the per-minute free quota resets each minute
 }
 
 /** Pull the first JSON object out of a model response, tolerating stray prose/fences. */
@@ -124,6 +148,15 @@ function reconcileCalories(calories: number, protein: number, carbs: number, fat
 }
 
 export class AIError extends Error {}
+
+/** Thrown when the free tier is temporarily rate-limited. */
+export class AIRateLimitError extends AIError {
+  retryAfter: number; // seconds until the limit resets
+  constructor(message: string, retryAfter: number) {
+    super(message);
+    this.retryAfter = retryAfter;
+  }
+}
 
 export interface AIModelInfo {
   id: string;
@@ -214,13 +247,13 @@ export async function parseFoodWithAI(
   }
 
   if (!res.ok) {
-    let detail = "";
+    let err: GeminiResponse | null = null;
     try {
-      const err = (await res.json()) as GeminiResponse;
-      detail = err.error?.message || "";
+      err = (await res.json()) as GeminiResponse;
     } catch {
       /* ignore */
     }
+    const detail = err?.error?.message || "";
     if (res.status === 400 && /api.?key/i.test(detail))
       throw new AIError("Your Google API key was rejected. Check it in Settings.");
     if (res.status === 400)
@@ -230,7 +263,10 @@ export async function parseFoodWithAI(
     if (res.status === 404)
       throw new AIError("That AI model isn't available — pick a different one in Settings.");
     if (res.status === 429)
-      throw new AIError("Free AI limit reached for now — try again in a minute.");
+      throw new AIRateLimitError(
+        "Free AI limit reached — logging with the built-in estimator meanwhile.",
+        parseRetrySeconds(res, err)
+      );
     throw new AIError(detail || `AI request failed (${res.status}).`);
   }
 

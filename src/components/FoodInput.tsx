@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MEAL_TYPES, type MealType } from "../types";
 
 interface Props {
@@ -7,6 +7,7 @@ interface Props {
   onScan: () => void;
   onPhoto: () => void;
   aiEnabled?: boolean;
+  cooldownUntil?: number; // epoch ms the free AI limit resets, 0 if not limited
 }
 
 const PLACEHOLDERS = [
@@ -25,14 +26,37 @@ const AI_PLACEHOLDERS = [
   "leftover katsu curry, about a plateful",
 ];
 
-export function FoodInput({ defaultMeal, onAdd, onScan, onPhoto, aiEnabled }: Props) {
+export function FoodInput({
+  defaultMeal,
+  onAdd,
+  onScan,
+  onPhoto,
+  aiEnabled,
+  cooldownUntil = 0,
+}: Props) {
   const [text, setText] = useState("");
   const [meal, setMeal] = useState<MealType>(defaultMeal);
   const [busy, setBusy] = useState(false);
+  const [now, setNow] = useState(Date.now());
   const [placeholder] = useState(() => {
     const list = aiEnabled ? AI_PLACEHOLDERS : PLACEHOLDERS;
     return list[Math.floor(Math.random() * list.length)];
   });
+
+  // Tick a live countdown while the free AI limit is cooling down.
+  useEffect(() => {
+    if (!cooldownUntil) return;
+    setNow(Date.now());
+    const t = setInterval(() => {
+      setNow(Date.now());
+      if (Date.now() >= cooldownUntil) clearInterval(t);
+    }, 1000);
+    return () => clearInterval(t);
+  }, [cooldownUntil]);
+
+  const cooling = cooldownUntil > now;
+  const remain = cooling ? Math.ceil((cooldownUntil - now) / 1000) : 0;
+  const clock = `${Math.floor(remain / 60)}:${String(remain % 60).padStart(2, "0")}`;
 
   const submit = async () => {
     const t = text.trim();
@@ -50,7 +74,8 @@ export function FoodInput({ defaultMeal, onAdd, onScan, onPhoto, aiEnabled }: Pr
     <div className="card food-input">
       <label htmlFor="food-field">
         What did you eat?
-        {aiEnabled && <span className="ai-chip">✨ AI</span>}
+        {aiEnabled && !cooling && <span className="ai-chip">✨ AI</span>}
+        {cooling && <span className="ai-cooldown">⏳ Free AI back in {clock}</span>}
       </label>
       <div className="row">
         <textarea
@@ -91,7 +116,12 @@ export function FoodInput({ defaultMeal, onAdd, onScan, onPhoto, aiEnabled }: Pr
         </button>
       </div>
       <p className="hint">
-        {aiEnabled ? (
+        {cooling ? (
+          <>
+            Free AI limit hit — resets in <b>{clock}</b>. Logging with the
+            built-in estimator until then. Everything stays editable.
+          </>
+        ) : aiEnabled ? (
           <>
             Describe your meal like you'd say it out loud — the AI works out the
             items and macros. Everything stays editable.

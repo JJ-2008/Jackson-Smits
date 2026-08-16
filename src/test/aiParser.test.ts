@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { extractFoods } from "../lib/aiParser";
+import { extractFoods, parseRetrySeconds } from "../lib/aiParser";
 
 describe("AI parser response extraction", () => {
   it("parses a clean JSON object with an items array", () => {
@@ -74,5 +74,28 @@ describe("AI parser response extraction", () => {
     expect(extractFoods("")).toHaveLength(0);
     expect(extractFoods("no json here at all")).toHaveLength(0);
     expect(extractFoods('{"items":[]}')).toHaveLength(0);
+  });
+});
+
+describe("rate-limit retry timing", () => {
+  it("reads retryDelay from the error body", () => {
+    const res = new Response("", { status: 429 });
+    const secs = parseRetrySeconds(res, {
+      error: {
+        details: [
+          { "@type": "type.googleapis.com/google.rpc.RetryInfo", retryDelay: "34s" },
+        ],
+      },
+    });
+    expect(secs).toBe(34);
+  });
+
+  it("prefers the Retry-After header when present", () => {
+    const res = new Response("", { status: 429, headers: { "retry-after": "20" } });
+    expect(parseRetrySeconds(res, null)).toBe(20);
+  });
+
+  it("falls back to 60 seconds when nothing is provided", () => {
+    expect(parseRetrySeconds(new Response("", { status: 429 }), null)).toBe(60);
   });
 });

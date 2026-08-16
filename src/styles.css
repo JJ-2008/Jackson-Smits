@@ -389,6 +389,18 @@ textarea {
   background: linear-gradient(180deg, #bef264, #a3e635);
   vertical-align: middle;
 }
+.ai-cooldown {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #1a1205;
+  background: linear-gradient(180deg, #fcd34d, #f59e0b);
+  vertical-align: middle;
+}
 .meal-tabs {
   display: flex;
   gap: 6px;

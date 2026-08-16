@@ -5,7 +5,7 @@ import { totalBurn, hadStrength, exerciseAdjustedTargets } from "./lib/exercise"
 import { addDays, formatLongDate, isToday } from "./lib/date";
 import { exportBackup } from "./lib/backup";
 import { loadAIConfig, saveAIConfig, type AIConfig } from "./lib/aiConfig";
-import { parseFoodWithAI, AIError } from "./lib/aiParser";
+import { parseFoodWithAI, AIError, AIRateLimitError } from "./lib/aiParser";
 import type { FoodEntry } from "./types";
 
 import { SplashScreen } from "./components/SplashScreen";
@@ -50,6 +50,7 @@ export default function App() {
   const [showSearch, setShowSearch] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [ai, setAi] = useState<AIConfig>(() => loadAIConfig());
+  const [aiCooldown, setAiCooldown] = useState(0); // epoch ms the free limit resets
 
   const saveAi = (cfg: AIConfig) => {
     setAi(cfg);
@@ -102,12 +103,19 @@ export default function App() {
       setToast(n > 0 ? `Added ${n} item${n > 1 ? "s" : ""}` : "No food found in that");
       return n;
     } catch (e) {
+      if (e instanceof AIRateLimitError) {
+        setAiCooldown(Date.now() + e.retryAfter * 1000);
+      }
       const msg = e instanceof AIError ? e.message : "AI couldn't handle that.";
       const n = store.addFoodsFromText(viewDate, text, meal);
       setToast(n > 0 ? `${msg} Used the built-in estimate instead.` : msg);
       return n;
     }
   };
+
+  // While the free AI limit is cooling down, log with the built-in parser.
+  const handleSmartAdd = (text: string, meal: (typeof foods)[number]["meal"]) =>
+    (Date.now() >= aiCooldown ? handleAddAI : handleAdd)(text, meal);
 
   const sameAsYesterday = () => {
     const n = store.copyPreviousDay(viewDate);
@@ -178,10 +186,11 @@ export default function App() {
 
           <FoodInput
             defaultMeal={guessMeal()}
-            onAdd={aiActive ? handleAddAI : handleAdd}
+            onAdd={aiActive ? handleSmartAdd : handleAdd}
             onScan={() => setShowScanner(true)}
             onPhoto={() => setShowPhoto(true)}
             aiEnabled={aiActive}
+            cooldownUntil={aiActive ? aiCooldown : 0}
           />
 
           <QuickActions
